@@ -57,12 +57,13 @@ The game must be closed to install the `.asi`; with it running, use
 
 ## Packaging a release
 
-`release.ps1` stages a drop-in build into `release\` — ignored by git, so none
+`release.ps1` stages a drop-in build into `release\` - ignored by git, so none
 of it is ever committed:
 
 ```
 release\SpeedLoader-0.1.0\
-  INSTALL.txt, LICENSE, LICENSE-CEF.txt
+  INSTALL.txt, LICENSE, LICENSE-CEF.txt, LICENSE-AsiLoader.txt
+  dinput8.dll                Ultimate ASI Loader, so the player needs nothing else
   scripts\                   copied into the game folder, as it is
 ```
 
@@ -71,11 +72,14 @@ release\SpeedLoader-0.1.0\
 .\release.ps1 -Version 1.0.0           name the package
 .\release.ps1 -Mods tachometer         ship only these mods
 .\release.ps1 -NoZip                   leave the folder, skip the .zip
+.\release.ps1 -NoAsiLoader             package without the loader
 ```
 
-Whoever unpacks it drops `scripts` next to `SPEED2.EXE`; they still need an
-`.asi` loader, like any other NFSU2 mod. The Chromium runtime is most of the
-~320 MB.
+Whoever unpacks it drops everything into the folder with `SPEED2.EXE`, the same
+way ExtraOptions is installed: `dinput8.dll` is [Ultimate ASI
+Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) (MIT, fetched by
+`tools\fetch_asi_loader.ps1` on the first package), and whoever already has an
+`.asi` loader just keeps theirs. The Chromium runtime is most of the ~330 MB.
 
 ## Writing a mod
 
@@ -187,8 +191,8 @@ PR looks like, are in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 You may use, modify and redistribute this, including your own forks and
 derivative mods, as long as you **credit Chrystian Farias** and link back to
-this repository, and as long as it is **not for commercial purposes**. For a
-commercial license, ask.
+<https://github.com/chrystianfarias/SpeedLoader>, and as long as it is **not
+for commercial purposes**. For a commercial license, ask.
 
 ## Credits
 

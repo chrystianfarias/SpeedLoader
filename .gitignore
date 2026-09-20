@@ -8,6 +8,7 @@ install/
 
 # Dependencies fetched at build time
 third_party/cef/
+third_party/asi-loader/
 
 # Reference material (other people's projects, kept locally, not redistributed)
 refs/

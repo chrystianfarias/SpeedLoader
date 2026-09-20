@@ -1,18 +1,21 @@
 # Stages a distributable build of SpeedLoader into release\.
 #
-# The release folder is local — it is in .gitignore and never committed.
+# The release folder is local - it is in .gitignore and never committed.
 #
 #   .\release.ps1                     build if needed, stage and zip
 #   .\release.ps1 -Version 1.0.0      name the package
 #   .\release.ps1 -Mods tachometer    ship only these mods
 #   .\release.ps1 -NoZip              leave the folder, skip the .zip
 #   .\release.ps1 -Rebuild            build first, even if binaries exist
+#   .\release.ps1 -NoAsiLoader        package without the .asi loader
 #
-# What the package looks like (drop `scripts` into the game folder):
+# What the package looks like. Its contents go into the game folder, next to
+# SPEED2.EXE, exactly as they are:
 #
 #   SpeedLoader-<version>\
 #     INSTALL.txt
-#     LICENSE
+#     LICENSE, LICENSE-CEF.txt, LICENSE-AsiLoader.txt
+#     dinput8.dll                 Ultimate ASI Loader - what loads the .asi
 #     scripts\SpeedLoader.asi
 #     scripts\SpeedLoader.ini
 #     scripts\SpeedLoader\        Chromium runtime, helper, ui\ and mods\
@@ -21,13 +24,15 @@ param(
     [string]$Version = "0.1.0",
     [string[]]$Mods,
     [switch]$NoZip,
-    [switch]$Rebuild
+    [switch]$Rebuild,
+    [switch]$NoAsiLoader
 )
 
 $ErrorActionPreference = "Stop"
-$root  = $PSScriptRoot
-$build = Join-Path $root "build\Release"
-$cef   = Join-Path $root "third_party\cef"
+$root   = $PSScriptRoot
+$build  = Join-Path $root "build\Release"
+$cef    = Join-Path $root "third_party\cef"
+$loader = Join-Path $root "third_party\asi-loader"
 
 # ---- build ---------------------------------------------------------------
 $asi = Join-Path $build "SpeedLoader.asi"
@@ -39,6 +44,14 @@ if ($Rebuild -or -not (Test-Path $asi)) {
 if (-not (Test-Path $asi)) { throw "SpeedLoader.asi not found. Run build.bat first." }
 if (-not (Test-Path (Join-Path $cef "Release\libcef.dll"))) {
     throw "CEF is missing. Run tools\fetch_cef.ps1 first."
+}
+
+# The .asi loader is what loads SpeedLoader.asi in the first place. Shipping it
+# is the convention for NFSU2 mods - ExtraOptions does the same - and it saves
+# the player a second download. -NoAsiLoader is for whoever already has one.
+if (-not $NoAsiLoader -and -not (Test-Path (Join-Path $loader "dinput8.dll"))) {
+    & (Join-Path $root "tools\fetch_asi_loader.ps1")
+    if ($LASTEXITCODE -ne 0) { throw "could not fetch the ASI loader" }
 }
 
 # ---- a clean staging tree ------------------------------------------------
@@ -54,6 +67,11 @@ New-Item -ItemType Directory -Force -Path $runtime | Out-Null
 Copy-Item $asi $scripts -Force
 Copy-Item (Join-Path $build "SpeedLoaderHelper.exe") $runtime -Force
 Copy-Item (Join-Path $root "SpeedLoader.ini") $scripts -Force
+
+if (-not $NoAsiLoader) {
+    Copy-Item (Join-Path $loader "dinput8.dll") $stage -Force
+    Copy-Item (Join-Path $loader "LICENSE.txt") (Join-Path $stage "LICENSE-AsiLoader.txt") -Force
+}
 
 # ---- Chromium runtime ----------------------------------------------------
 # Binaries (dll + .bin + .json) and resources (.pak, icudtl.dat, locales\).
@@ -83,6 +101,18 @@ Copy-Item (Join-Path $root "LICENSE") $stage -Force
 Copy-Item (Join-Path $cef "LICENSE.txt") (Join-Path $stage "LICENSE-CEF.txt") -Force
 
 $shipped = ($sources.Name | Sort-Object) -join ", "
+$loaderLines = if ($NoAsiLoader) {
+@"
+  You need an .asi loader already installed - this package does not bring one.
+"@
+} else {
+@"
+  dinput8.dll is Ultimate ASI Loader, by ThirteenAG. It is what loads the
+  .asi at startup. If you already have an .asi loader (dinput8.dll, dsound.dll,
+  vorbisFile.dll, ...) in the game folder, keep yours and skip this file.
+"@
+}
+
 @"
 SpeedLoader $Version
 A modding platform for NFS Underground 2 (SPEED2.EXE v1.2 NTSC, 4,800,512 bytes).
@@ -90,12 +120,13 @@ A modding platform for NFS Underground 2 (SPEED2.EXE v1.2 NTSC, 4,800,512 bytes)
 INSTALL
 
   1. Close the game.
-  2. Copy the "scripts" folder into your NFSU2 folder, next to SPEED2.EXE,
-     and let it merge with the one already there.
-  3. You need an .asi loader installed (the same one other NFSU2 mods use).
-  4. Start the game.
+  2. Copy everything in this folder into your NFSU2 folder, next to SPEED2.EXE,
+     and let "scripts" merge with the one already there.
+  3. Start the game.
 
-  Upgrading: your scripts\SpeedLoader.ini is yours — keep it, and compare it
+$loaderLines
+
+  Upgrading: your scripts\SpeedLoader.ini is yours - keep it, and compare it
   with the one in this package if a new key shows up.
 
 KEYS
@@ -105,7 +136,8 @@ KEYS
 
 WHAT IS IN HERE
 
-  scripts\SpeedLoader.asi        the loader
+  dinput8.dll                    the .asi loader (Ultimate ASI Loader)
+  scripts\SpeedLoader.asi        SpeedLoader itself
   scripts\SpeedLoader.ini        configuration
   scripts\SpeedLoader\           Chromium runtime and the helper process
   scripts\SpeedLoader\ui\        the shell that mounts each mod's UI
@@ -115,13 +147,17 @@ TROUBLE
 
   scripts\SpeedLoader.log is the first place to look; Chromium's own log is
   SpeedLoaderCef.log next to it. Most surprises are a conflict with another
-  .asi in the main loop — say which ones you have when reporting a problem.
+  .asi in the main loop - say which ones you have when reporting a problem.
 
 LICENSE
 
+  SpeedLoader by Chrystian Farias
+  https://github.com/chrystianfarias/SpeedLoader
+
   CC BY-NC 4.0 - Copyright (c) 2025 Chrystian Farias. See LICENSE.
   Redistribution is fine with credit, and not for commercial purposes.
-  CEF/Chromium keeps its own license, in LICENSE-CEF.txt.
+  CEF/Chromium and Ultimate ASI Loader keep their own licenses, in
+  LICENSE-CEF.txt and LICENSE-AsiLoader.txt.
 
   Not affiliated with Electronic Arts. No game file is distributed here.
 "@ | Set-Content (Join-Path $stage "INSTALL.txt") -Encoding utf8
