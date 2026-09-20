@@ -14,7 +14,7 @@
 #
 #   SpeedLoader-<version>\
 #     INSTALL.txt
-#     LICENSE, LICENSE-CEF.txt, LICENSE-AsiLoader.txt
+#     LICENSE.txt                 ours, plus CEF's and the loader's
 #     dinput8.dll                 Ultimate ASI Loader - what loads the .asi
 #     scripts\SpeedLoader.asi
 #     scripts\SpeedLoader.ini
@@ -70,7 +70,6 @@ Copy-Item (Join-Path $root "SpeedLoader.ini") $scripts -Force
 
 if (-not $NoAsiLoader) {
     Copy-Item (Join-Path $loader "dinput8.dll") $stage -Force
-    Copy-Item (Join-Path $loader "LICENSE.txt") (Join-Path $stage "LICENSE-AsiLoader.txt") -Force
 }
 
 # ---- Chromium runtime ----------------------------------------------------
@@ -97,8 +96,53 @@ if (-not $sources) { throw "no mods to ship" }
 $sources | ForEach-Object { Copy-Item $_.FullName $modsOut -Recurse -Force }
 
 # ---- paperwork -----------------------------------------------------------
-Copy-Item (Join-Path $root "LICENSE") $stage -Force
-Copy-Item (Join-Path $cef "LICENSE.txt") (Join-Path $stage "LICENSE-CEF.txt") -Force
+# One LICENSE.txt for the whole package: ours, then the components we ship.
+# Both of them are permissive, and both require their notice to travel along.
+$parts = @(
+    "SpeedLoader - LICENSE",
+    "",
+    "This package contains SpeedLoader, and third-party components that keep",
+    "their own licenses. Each one is reproduced in full below.",
+    "",
+    ("=" * 76),
+    "1. SpeedLoader",
+    ("=" * 76),
+    "",
+    (Get-Content (Join-Path $root "LICENSE") -Raw).TrimEnd(),
+    "",
+    ("=" * 76),
+    "2. Chromium Embedded Framework (CEF) and Chromium",
+    ("=" * 76),
+    "",
+    (Get-Content (Join-Path $cef "LICENSE.txt") -Raw).TrimEnd()
+)
+
+# QuickJS is linked into SpeedLoader.asi, so its notice travels too.
+$quickjs = Join-Path $root "build\_deps\quickjs-src\LICENSE"
+if (Test-Path $quickjs) {
+    $parts += @(
+        "",
+        ("=" * 76),
+        "3. QuickJS, by Fabrice Bellard and Charlie Gordon (linked into the .asi)",
+        ("=" * 76),
+        "",
+        (Get-Content $quickjs -Raw).TrimEnd()
+    )
+}
+
+if (-not $NoAsiLoader) {
+    $parts += @(
+        "",
+        ("=" * 76),
+        "4. Ultimate ASI Loader (dinput8.dll), by ThirteenAG",
+        ("=" * 76),
+        "   https://github.com/ThirteenAG/Ultimate-ASI-Loader",
+        "",
+        (Get-Content (Join-Path $loader "LICENSE.txt") -Raw).TrimEnd()
+    )
+}
+
+($parts -join "`r`n") | Set-Content (Join-Path $stage "LICENSE.txt") -Encoding utf8
 
 $shipped = ($sources.Name | Sort-Object) -join ", "
 $loaderLines = if ($NoAsiLoader) {
@@ -156,8 +200,8 @@ LICENSE
 
   CC BY-NC 4.0 - Copyright (c) 2025 Chrystian Farias. See LICENSE.
   Redistribution is fine with credit, and not for commercial purposes.
-  CEF/Chromium and Ultimate ASI Loader keep their own licenses, in
-  LICENSE-CEF.txt and LICENSE-AsiLoader.txt.
+  CEF/Chromium and Ultimate ASI Loader keep their own licenses. All of them
+  are in LICENSE.txt, in full.
 
   Not affiliated with Electronic Arts. No game file is distributed here.
 "@ | Set-Content (Join-Path $stage "INSTALL.txt") -Encoding utf8

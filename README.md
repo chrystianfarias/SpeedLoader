@@ -62,7 +62,8 @@ of it is ever committed:
 
 ```
 release\SpeedLoader-0.1.0\
-  INSTALL.txt, LICENSE, LICENSE-CEF.txt, LICENSE-AsiLoader.txt
+  INSTALL.txt
+  LICENSE.txt                ours, plus CEF's, QuickJS's and the loader's
   dinput8.dll                Ultimate ASI Loader, so the player needs nothing else
   scripts\                   copied into the game folder, as it is
 ```
