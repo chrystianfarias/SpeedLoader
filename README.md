@@ -47,12 +47,35 @@ build.bat nomod              build only
 .\install.ps1 -ModsOnly      refresh mods and UI without touching Chromium
 .\run.ps1 -Seconds 40        launch the game with focus and return the log
 .\shot.ps1 -Out x.png        capture the game window
+.\release.ps1                package a build for distribution
 ```
 
 To install elsewhere: `.\install.ps1 -Game "D:\Games\NFSU2"`.
 
 The game must be closed to install the `.asi`; with it running, use
 `-ModsOnly` and press F5 in-game to reload the UI.
+
+## Packaging a release
+
+`release.ps1` stages a drop-in build into `release\` — ignored by git, so none
+of it is ever committed:
+
+```
+release\SpeedLoader-0.1.0\
+  INSTALL.txt, LICENSE, LICENSE-CEF.txt
+  scripts\                   copied into the game folder, as it is
+```
+
+```
+.\release.ps1                          build if needed, stage and zip
+.\release.ps1 -Version 1.0.0           name the package
+.\release.ps1 -Mods tachometer         ship only these mods
+.\release.ps1 -NoZip                   leave the folder, skip the .zip
+```
+
+Whoever unpacks it drops `scripts` next to `SPEED2.EXE`; they still need an
+`.asi` loader, like any other NFSU2 mod. The Chromium runtime is most of the
+~320 MB.
 
 ## Writing a mod
 

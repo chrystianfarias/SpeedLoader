@@ -1,5 +1,6 @@
 # Build output
 build/
+release/
 out/
 bin/
 obj/
