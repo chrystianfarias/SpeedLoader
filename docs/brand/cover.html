@@ -1,0 +1,152 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SpeedLoader cover</title>
+<!--
+  The repository cover, 1280x640 (GitHub's social preview size).
+
+  It is the splash card grown to poster size: the same three chevrons, the same
+  blue (#6fd3ff -> #2d7ff0), the same wordmark split between white and muted.
+  Screenshot it with:
+
+    chrome --headless --disable-gpu --screenshot=cover.png ^
+           --window-size=1280,640 --default-background-color=00000000 cover.html
+-->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1280px;
+    height: 640px;
+    overflow: hidden;
+    background: #070a10;
+    font: 400 16px/1.4 "Segoe UI", system-ui, sans-serif;
+    color: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .stage {
+    position: relative;
+    width: 1280px;
+    height: 640px;
+    display: flex;
+    align-items: center;
+    padding: 0 88px;
+    background:
+      radial-gradient(900px 520px at 22% 42%, rgba(45, 127, 240, .30), transparent 62%),
+      radial-gradient(620px 420px at 88% 18%, rgba(111, 211, 255, .14), transparent 60%),
+      linear-gradient(160deg, #0d1420 0%, #080b12 55%, #05070c 100%);
+  }
+
+  /* Speed lines: the motion of the chevrons, spread across the poster. */
+  .lines { position: absolute; inset: 0; overflow: hidden; }
+  .lines i {
+    position: absolute;
+    right: -10%;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, rgba(111, 211, 255, .55));
+    transform: skewX(-18deg);
+  }
+  .lines i:nth-child(1) { top: 16%; width: 46%; opacity: .30; }
+  .lines i:nth-child(2) { top: 27%; width: 62%; opacity: .16; }
+  .lines i:nth-child(3) { top: 39%; width: 34%; opacity: .22; }
+  .lines i:nth-child(4) { top: 63%; width: 55%; opacity: .18; }
+  .lines i:nth-child(5) { top: 74%; width: 40%; opacity: .26; }
+  .lines i:nth-child(6) { top: 85%; width: 68%; opacity: .12; }
+
+  /* A faint grid, the way an overlay HUD reads. */
+  .grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, .028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, .028) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(760px 520px at 30% 50%, #000 20%, transparent 78%);
+    -webkit-mask-image: radial-gradient(760px 520px at 30% 50%, #000 20%, transparent 78%);
+  }
+
+  .content { position: relative; display: flex; align-items: center; gap: 52px; }
+
+  .chevrons { display: flex; gap: 10px; align-items: center; filter: drop-shadow(0 8px 34px rgba(45, 127, 240, .55)); }
+
+  .text { display: grid; gap: 22px; }
+
+  .wordmark {
+    font-size: 92px;
+    font-weight: 650;
+    letter-spacing: .085em;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .wordmark span { color: rgba(233, 238, 247, .52); }
+
+  .rule {
+    width: 560px;
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #2d7ff0, #6fd3ff 55%, rgba(111, 211, 255, 0));
+  }
+
+  .tagline {
+    font-size: 24px;
+    line-height: 1.45;
+    color: rgba(233, 238, 247, .78);
+    max-width: 720px;
+  }
+  .tagline b { color: #fff; font-weight: 600; }
+
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 15px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    color: rgba(233, 238, 247, .45);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #7fe0a5; }
+  .sep { width: 4px; height: 4px; border-radius: 50%; background: rgba(233, 238, 247, .28); }
+</style>
+
+<div class="stage">
+  <div class="lines"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="grid"></div>
+
+  <div class="content">
+    <div class="chevrons">
+      <!-- The same shape as the splash card's: a chevron cut out of a block,
+           so it depends on no font. -->
+      <svg width="74" height="168" viewBox="0 0 74 168" fill="none">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#6fd3ff"/>
+            <stop offset="1" stop-color="#2d7ff0"/>
+          </linearGradient>
+        </defs>
+        <polygon points="0,0 40.7,0 74,84 40.7,168 0,168 33.3,84" fill="url(#g)"/>
+      </svg>
+      <svg width="74" height="168" viewBox="0 0 74 168" fill="none" opacity=".72">
+        <polygon points="0,0 40.7,0 74,84 40.7,168 0,168 33.3,84" fill="url(#g)"/>
+      </svg>
+      <svg width="74" height="168" viewBox="0 0 74 168" fill="none" opacity=".40">
+        <polygon points="0,0 40.7,0 74,84 40.7,168 0,168 33.3,84" fill="url(#g)"/>
+      </svg>
+    </div>
+
+    <div class="text">
+      <div class="wordmark"><b>SPEED</b><span>LOADER</span></div>
+      <div class="rule"></div>
+      <div class="tagline">
+        A modding platform for <b>NFS Underground 2</b>.<br>
+        A mod is a folder with JavaScript and HTML &mdash; nothing to compile.
+      </div>
+      <div class="meta">
+        <span class="dot"></span>
+        <span>QuickJS in the game</span>
+        <span class="sep"></span>
+        <span>Chromium over it</span>
+      </div>
+    </div>
+  </div>
+</div>

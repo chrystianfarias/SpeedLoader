@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/brand/cover.png" alt="SpeedLoader" width="860">
+</p>
+
 # SpeedLoader
 
 A modding platform for **NFS Underground 2** (`SPEED2.EXE` v1.2 NTSC, 4,800,512
