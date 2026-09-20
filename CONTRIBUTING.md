@@ -8,6 +8,10 @@ the project's [LICENSE](LICENSE) (CC BY-NC 4.0).
 
 ## Before you start
 
+If what you want to write is a mod, [docs/MODDING.md](docs/MODDING.md) is the
+guide: the manifest, the two halves, the SDK, and what not to do on the game
+thread.
+
 For anything larger than a fix — a new hook, a change to the `speed.*` API, a
 new subsystem — open an issue first and describe what you want to do. It saves
 you from writing something that takes a different direction than the platform.

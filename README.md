@@ -14,6 +14,71 @@ Nothing to compile. The native SDK (`speed.*`) gives you the game's memory,
 functions and objects; the HTML layer is a real Chromium — CSS, DevTools,
 `fetch`, everything you already know.
 
+**Writing a mod is what this project is for: the full guide is in
+[docs/MODDING.md](docs/MODDING.md).** What follows is the short version.
+
+## Writing a mod
+
+`mod.json`:
+
+```json
+{
+  "id": "my-mod",
+  "name": "My mod",
+  "main": "main.js",
+  "ui": "ui/index.html",
+  "enabled": true
+}
+```
+
+`main.js` — runs inside the game. `import` of neighbouring files works (they
+are ES modules). For editor completion, point at the `.d.ts`:
+
+```js
+/// <reference path="../../sdk/speedloader.d.ts" />
+
+speed.on("frame", () => {
+  const t = speed.game.telemetry();
+  if (t) speed.ui.send("rpm", Math.round(t.rpm));
+});
+
+// Raw memory and native calls, for whatever the SDK does not wrap:
+const gameflow = speed.mem.readU32(speed.game.addr.gameFlowManager);
+speed.call(0x5FAE20, [speed.game.player()], { conv: "thiscall" });
+```
+
+`ui/index.html` — runs in Chromium. It is not a whole page: it is the fragment
+that goes into its own shadow root, with `speedloader`, `root` and `mod` in
+scope for its `<script>` tags.
+
+```html
+<style> .hud { position: absolute; right: 24px; bottom: 24px; } </style>
+<div class="hud"><span id="rpm">0</span> rpm</div>
+<script>
+  speedloader.on("rpm", (v) => root.getElementById("rpm").textContent = v);
+</script>
+```
+
+One detail that saves time: the page finishes mounting after `main.js` is
+already running. Have the UI send a "ready" message and answer it from the mod,
+like the example does.
+
+That is the shape of it. Everything else — events, telemetry, the in-game
+console and its `/commands`, saving per career car, sound, memory and native
+calls, drawing inside the 3D scene, and the habits that keep a mod from
+crashing someone else's game — is in
+**[docs/MODDING.md](docs/MODDING.md)**.
+
+## The example
+
+| Mod | What it shows |
+|---|---|
+| `mods/tachometer` | an HTML dial fed by `speed.game.telemetry()`, throttled to 30 Hz: the mod half, the page half, and the message between them |
+
+Speed comes from the car mirror (`player+0x04`, `+0x42C`, in m/s), the same
+copy that feeds the game's own dial. Reading it is cheap and reliable; writing
+to it does nothing, because physics ignores it (see `NOTES.md`).
+
 ## How it works
 
 Everything lives inside the game process:
@@ -81,63 +146,6 @@ way ExtraOptions is installed: `dinput8.dll` is [Ultimate ASI
 Loader](https://github.com/ThirteenAG/Ultimate-ASI-Loader) (MIT, fetched by
 `tools\fetch_asi_loader.ps1` on the first package), and whoever already has an
 `.asi` loader just keeps theirs. The Chromium runtime is most of the ~330 MB.
-
-## Writing a mod
-
-`mod.json`:
-
-```json
-{
-  "id": "my-mod",
-  "name": "My mod",
-  "main": "main.js",
-  "ui": "ui/index.html",
-  "enabled": true
-}
-```
-
-`main.js` — runs inside the game. `import` of neighbouring files works (they
-are ES modules). For editor completion, point at the `.d.ts`:
-
-```js
-/// <reference path="../../sdk/speedloader.d.ts" />
-
-speed.on("frame", () => {
-  const t = speed.game.telemetry();
-  if (t) speed.ui.send("rpm", Math.round(t.rpm));
-});
-
-// Raw memory and native calls, for whatever the SDK does not wrap:
-const gameflow = speed.mem.readU32(speed.game.addr.gameFlowManager);
-speed.call(0x5FAE20, [speed.game.player()], { conv: "thiscall" });
-```
-
-`ui/index.html` — runs in Chromium. It is not a whole page: it is the fragment
-that goes into its own shadow root, with `speedloader`, `root` and `mod` in
-scope for its `<script>` tags.
-
-```html
-<style> .hud { position: absolute; right: 24px; bottom: 24px; } </style>
-<div class="hud"><span id="rpm">0</span> rpm</div>
-<script>
-  speedloader.on("rpm", (v) => root.getElementById("rpm").textContent = v);
-</script>
-```
-
-One detail that saves time: the page finishes mounting after `main.js` is
-already running. Have the UI send a "ready" message and answer it from the mod,
-like the examples do.
-
-## The examples
-
-| Mod | What it shows |
-|---|---|
-| `mods/tachometer` | an HTML dial fed by `speed.game.telemetry()`, throttled to 30 Hz |
-| `mods/splash-card` | reacting to game state — a card over the boot splash, gone when the game moves on |
-
-Speed comes from the car mirror (`player+0x04`, `+0x42C`, in m/s), the same
-copy that feeds the game's own dial. Reading it is cheap and reliable; writing
-to it does nothing, because physics ignores it (see `NOTES.md`).
 
 ## Keys
 
