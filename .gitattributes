@@ -1,0 +1,19 @@
+* text=auto
+
+*.cpp   text
+*.h     text
+*.js    text
+*.ts    text
+*.html  text
+*.json  text
+*.md    text
+*.ini   text
+*.txt   text
+*.bat   text eol=crlf
+*.ps1   text eol=crlf
+
+*.wav   binary
+*.png   binary
+*.dll   binary
+*.exe   binary
+*.asi   binary

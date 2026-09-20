@@ -1,0 +1,20 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "x86",
+      "displayName": "Win32 (Release)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "Win32",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CONFIGURATION_TYPES": "Release;Debug"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "x86", "configurePreset": "x86", "configuration": "Release" },
+    { "name": "x86-debug", "configurePreset": "x86", "configuration": "Debug" }
+  ]
+}

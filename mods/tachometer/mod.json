@@ -1,0 +1,8 @@
+{
+  "id": "tachometer",
+  "name": "Tachometer",
+  "version": "1.0.0",
+  "main": "main.js",
+  "ui": "ui/index.html",
+  "enabled": true
+}

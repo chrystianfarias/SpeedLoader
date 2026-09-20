@@ -1,0 +1,324 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SpeedLoader</title>
+<!--
+  The single page CEF loads over the game.
+
+  It draws nothing of its own: it reads mods.json (written by SpeedLoader as it
+  loads the mods) and mounts one UI fragment per mod, each inside its own shadow
+  root - so one mod's CSS never leaks into another's.
+
+  Each mod gets:
+    speedloader.send(channel, data)   -> reaches the mod's main.js
+    speedloader.on(channel, callback) <- whatever main.js sends back
+    root                              -> the shadow root it draws into
+-->
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: transparent;   /* the game shows through */
+    overflow: hidden;
+    font: 14px/1.4 "Segoe UI", system-ui, sans-serif;
+    color: #fff;
+  }
+  /* Every mod covers the whole screen; its own CSS decides what is clickable. */
+  .sl-mod {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+  #sl-errors {
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    max-width: 60ch;
+    display: grid;
+    gap: 6px;
+    pointer-events: none;
+  }
+  #sl-console {
+    position: fixed; left: 14px; bottom: 14px;
+    width: 460px; max-width: 46vw;
+    display: flex; flex-direction: column; gap: 6px;
+    pointer-events: none;
+    font: 500 12px/1.45 "Segoe UI", system-ui, sans-serif;
+  }
+
+  #sl-log { display: flex; flex-direction: column; gap: 2px; }
+
+  .sl-line {
+    background: rgba(8, 8, 10, 0.72);
+    border-left: 2px solid rgba(255, 255, 255, 0.14);
+    padding: 3px 8px;
+    border-radius: 3px;
+    color: #d8d8dc;
+    width: fit-content; max-width: 100%;
+    word-break: break-word;
+    /* As linhas somem sozinhas: um console que acumula vira cortina sobre o
+       jogo. Com a barra aberta elas voltam, porque ai o jogador esta lendo. */
+    transition: opacity 400ms linear;
+  }
+  .sl-line .sl-mod-tag { color: #6a6a72; margin-right: 6px; }
+
+  #sl-bar {
+    display: none; align-items: center; gap: 6px;
+    background: rgba(8, 8, 10, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 4px;
+    padding: 5px 9px;
+    pointer-events: auto;
+  }
+  #sl-console.open #sl-bar { display: flex; }
+  #sl-console.open .sl-line { opacity: 1 !important; }
+
+  .sl-prompt { color: #f5a300; font-weight: 700; }
+  #sl-input {
+    flex: 1; background: none; border: 0; outline: 0;
+    color: #fff; font: 500 12px/1.4 "Segoe UI", system-ui, sans-serif;
+  }
+
+  .sl-error {
+    background: rgba(140, 20, 20, .92);
+    border-left: 3px solid #ff5a5a;
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: pre-wrap;
+  }
+</style>
+
+<div id="sl-errors"></div>
+
+<!-- O console: historico do que os mods escrevem, e a barra de comando. Fica na
+     casca, e nao num mod, porque pertence a todos eles. -->
+<div id="sl-console">
+  <div id="sl-log"></div>
+  <div id="sl-bar"><span class="sl-prompt">/</span><input id="sl-input" spellcheck="false" autocomplete="off"></div>
+</div>
+
+<script>
+(function () {
+  const errors = document.getElementById('sl-errors');
+
+  function fail(text) {
+    console.error('[shell]', text);
+    const div = document.createElement('div');
+    div.className = 'sl-error';
+    div.textContent = text;
+    errors.appendChild(div);
+  }
+
+  // The API each mod sees: channels are prefixed with the mod id, which is how
+  // the native side knows who to deliver to.
+  function apiFor(id) {
+    return {
+      modId: id,
+      send(channel, data) {
+        window.speedloader.send(id + ':' + channel, data);
+      },
+      on(channel, cb) {
+        return window.speedloader.on(id + ':' + channel, cb);
+      },
+      off(channel, cb) {
+        window.speedloader.off(id + ':' + channel, cb);
+      }
+    };
+  }
+
+  // A mod's HTML arrives as text: styles and markup go into the shadow root,
+  // and its <script> tags run with the mod API in scope. innerHTML on its own
+  // would execute no script at all.
+  function mount(mod, html) {
+    const host = document.createElement('div');
+    host.className = 'sl-mod';
+    host.dataset.mod = mod.id;
+    document.body.appendChild(host);
+
+    const root = host.attachShadow({ mode: 'open' });
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+
+    const scripts = [];
+    doc.querySelectorAll('script').forEach(s => {
+      scripts.push({ src: s.getAttribute('src'), code: s.textContent });
+      s.remove();
+    });
+
+    doc.head.querySelectorAll('style, link[rel=stylesheet]').forEach(n => {
+      root.appendChild(n.cloneNode(true));
+    });
+    Array.from(doc.body.childNodes).forEach(n => root.appendChild(n));
+
+    const api = apiFor(mod.id);
+    const base = mod.url.slice(0, mod.url.lastIndexOf('/') + 1);
+
+    const run = (code, origin) => {
+      try {
+        new Function('speedloader', 'root', 'mod', code)(api, root, mod);
+      } catch (e) {
+        fail(mod.id + ' / ' + origin + ': ' + e.message);
+      }
+    };
+
+    // External scripts keep their order: each waits for the previous one.
+    (async () => {
+      for (const s of scripts) {
+        if (s.src) {
+          try {
+            const url = new URL(s.src, base).href;
+            run(await (await fetch(url)).text(), s.src);
+          } catch (e) {
+            fail(mod.id + ': could not load ' + s.src + ' (' + e.message + ')');
+          }
+        } else {
+          run(s.code, 'inline');
+        }
+      }
+    })();
+  }
+
+  const espera = (ms) => new Promise(r => setTimeout(r, ms));
+
+  async function load() {
+    // Rede de seguranca para a corrida entre a pagina abrir e o mods.json
+    // existir. O carregamento nativo agora escreve o arquivo antes de subir a
+    // UI, mas a pagina tambem recarrega sozinha (F5) e pode chegar em qualquer
+    // momento — tentar de novo custa menos que uma UI vazia.
+    let mods;
+    for (let tentativa = 1; tentativa <= 10; tentativa++) {
+      try {
+        mods = await (await fetch('mods.json?t=' + Date.now())).json();
+        break;
+      } catch (e) {
+        if (tentativa === 10) {
+          fail('mods.json could not be read after 10 tries: ' + e.message);
+          return;
+        }
+        await espera(150);
+      }
+    }
+
+    for (const mod of mods) {
+      try {
+        const response = await fetch(mod.url);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        mount(mod, await response.text());
+      } catch (e) {
+        fail('UI for ' + mod.id + ' failed: ' + e.message);
+      }
+    }
+    console.log('[shell] ' + mods.length + ' UI(s) mounted');
+  }
+
+  // ------------------------------------------------------------------ console
+  //
+  // A marcacao de cor e resolvida aqui, e nao no lado nativo: quem desenha e
+  // esta camada, e mandar a linha ja partida em pedacos so acrescentaria
+  // formato para manter dos dois lados.
+  const CORES = {
+    vermelho: '#ff5a4a', red: '#ff5a4a',
+    verde: '#3ddc72', green: '#3ddc72',
+    amarelo: '#f2e600', yellow: '#f2e600',
+    laranja: '#ef9a10', orange: '#ef9a10',
+    azul: '#4aa8ff', blue: '#4aa8ff',
+    cinza: '#8a8a93', gray: '#8a8a93', grey: '#8a8a93',
+    branco: '#ffffff', white: '#ffffff',
+  };
+
+  const consoleEl = document.getElementById('sl-console');
+  const logEl = document.getElementById('sl-log');
+  const inputEl = document.getElementById('sl-input');
+
+  const MAX_LINHAS = 8;
+  const SOME_EM = 7000;
+
+  // "gastou {laranja}12.4 L{/} de alcool" -> nos coloridos.
+  function pintar(texto) {
+    const frag = document.createDocumentFragment();
+    const re = /\{(\/|#[0-9a-fA-F]{3,6}|[a-zA-Z]+)\}/g;
+    let i = 0, cor = null, m;
+
+    const empurrar = (t) => {
+      if (!t) return;
+      const span = document.createElement('span');
+      span.textContent = t;
+      if (cor) span.style.color = cor;
+      frag.appendChild(span);
+    };
+
+    while ((m = re.exec(texto)) !== null) {
+      empurrar(texto.slice(i, m.index));
+      const tag = m[1];
+      cor = tag === '/' ? null : (tag[0] === '#' ? tag : (CORES[tag.toLowerCase()] || null));
+      i = m.index + m[0].length;
+    }
+    empurrar(texto.slice(i));
+    return frag;
+  }
+
+  function escrever(mod, texto) {
+    const div = document.createElement('div');
+    div.className = 'sl-line';
+
+    if (mod && mod !== 'sl') {
+      const tag = document.createElement('span');
+      tag.className = 'sl-mod-tag';
+      tag.textContent = mod;
+      div.appendChild(tag);
+    }
+    div.appendChild(pintar(String(texto)));
+    logEl.appendChild(div);
+
+    while (logEl.children.length > MAX_LINHAS) logEl.removeChild(logEl.firstChild);
+
+    setTimeout(() => { div.style.opacity = '0'; }, SOME_EM);
+    setTimeout(() => { if (div.parentNode) div.parentNode.removeChild(div); }, SOME_EM + 500);
+  }
+
+  window.speedloader.on('sl:log', (d) => escrever(d && d.mod, d && d.text));
+  window.speedloader.on('sl:command-reply', (t) => escrever('sl', t));
+
+  // A "/" que abre a barra chega duas vezes: uma como tecla, que o lado nativo
+  // intercepta para abrir, e outra como caractere, ja com o teclado entregue a
+  // UI — e essa segunda aparecia digitada no campo. A primeira barra depois de
+  // abrir e descartada.
+  let engolirBarra = false;
+
+  window.speedloader.on('sl:command-open', () => {
+    consoleEl.classList.add('open');
+    inputEl.value = '';
+    engolirBarra = true;
+    setTimeout(() => { engolirBarra = false; }, 250);
+    inputEl.focus();
+  });
+
+  inputEl.addEventListener('beforeinput', (e) => {
+    if (engolirBarra && e.data === '/') { e.preventDefault(); engolirBarra = false; }
+  });
+
+  function fechar() {
+    consoleEl.classList.remove('open');
+    inputEl.blur();
+    window.speedloader.send('sl:command-close', null);
+  }
+
+  inputEl.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') { fechar(); return; }
+    if (e.key !== 'Enter') return;
+
+    const linha = inputEl.value.trim();
+    inputEl.value = '';
+    fechar();
+    if (linha) {
+      escrever('sl', '{cinza}/' + linha + '{/}');
+      window.speedloader.send('sl:command', linha);
+    }
+  });
+
+  if (!window.speedloader) {
+    fail('window.speedloader is missing: did SpeedLoaderHelper.exe start?');
+  }
+  load();
+})();
+</script>

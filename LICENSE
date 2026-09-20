@@ -1,0 +1,64 @@
+SpeedLoader
+Copyright (c) 2025 Chrystian Farias
+
+This work is licensed under the Creative Commons
+Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0).
+
+Full legal text: https://creativecommons.org/licenses/by-nc/4.0/legalcode
+Summary:        https://creativecommons.org/licenses/by-nc/4.0/
+
+WHAT YOU MAY DO
+
+  * Use, run and study this software, for any non-commercial purpose.
+  * Copy and redistribute it, in any medium or format.
+  * Modify it and distribute your modified versions (remixes, forks,
+    derivative mods and builds).
+
+UNDER TWO CONDITIONS
+
+  1. Attribution. You must give appropriate credit to Chrystian Farias,
+     link back to this repository, and indicate if changes were made.
+     A credit line such as:
+
+         Based on SpeedLoader by Chrystian Farias
+         https://github.com/<owner>/SpeedLoader
+
+     in the README, the mod description, the about screen, or the video
+     description, is enough. You may not suggest that the author endorses
+     you or your use of the work.
+
+  2. NonCommercial. You may not use this work, in whole or in part, for
+     commercial purposes. That includes selling it, selling access to it,
+     bundling it with a paid product or service, using it in paid mod
+     packs, paywalled or subscription distribution, and any distribution
+     primarily intended for or directed toward commercial advantage or
+     monetary compensation. Free public distribution, and use in videos or
+     streams that are not built around selling this software, are fine.
+
+     If you want a commercial license, ask the author.
+
+CONTRIBUTIONS
+
+By submitting a pull request you agree that your contribution is licensed
+under these same terms. Pull requests are welcome and are merged after
+review and approval by the maintainer. See CONTRIBUTING.md.
+
+NO WARRANTY
+
+To the extent permitted by law, this software is provided "as is", without
+warranty of any kind, express or implied, including but not limited to the
+warranties of merchantability, fitness for a particular purpose and
+non-infringement. In no event shall the author be liable for any claim,
+damages or other liability arising from, out of or in connection with the
+software or its use.
+
+THIRD PARTIES
+
+This repository is not affiliated with, endorsed by, or sponsored by
+Electronic Arts. "Need for Speed" and "Underground 2" are trademarks of
+their respective owners. No game asset or game code is distributed here.
+
+Components fetched or vendored at build time keep their own licenses:
+CEF / Chromium (BSD 3-Clause), QuickJS (MIT), and the reverse-engineering
+references credited in NOTES.md, including NFSU2ExtraOptions by the ExOpts
+Team (GPLv3), which is not distributed in this repository.

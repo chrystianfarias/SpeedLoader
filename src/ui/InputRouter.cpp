@@ -1,0 +1,170 @@
+#include "InputRouter.h"
+
+#include "CefHost.h"
+#include "Overlay.h"
+#include "core/Log.h"
+#include "game/Game.h"
+
+namespace
+{
+    WNDPROC g_origWndProc = 0;
+    HWND    g_hwnd = 0;
+    bool    g_capturing = false;
+    int     g_toggleKey = VK_F1;
+
+    // Circular key queue for mods. Sixteen is plenty: the main loop drains it
+    // every frame, and losing a key from someone who typed 17 times in 16 ms is
+    // not a real problem.
+    int  g_keys[16];
+    int  g_keyHead = 0, g_keyTail = 0;
+
+    void PushKey(int vk)
+    {
+        int next = (g_keyHead + 1) % 16;
+        if (next == g_keyTail) return;   // full: drop the newest
+        g_keys[g_keyHead] = vk;
+        g_keyHead = next;
+    }
+
+    // The UI is painted at backbuffer size; the window may be another size
+    // (border, DPI, stretched fullscreen). Convert before handing it to CEF.
+    void ToUiCoords(LPARAM lParam, int* x, int* y)
+    {
+        int cx = (short)LOWORD(lParam);
+        int cy = (short)HIWORD(lParam);
+
+        RECT rc;
+        int uiW = 0, uiH = 0;
+        Overlay::Size(&uiW, &uiH);
+        if (GetClientRect(g_hwnd, &rc) && rc.right > 0 && rc.bottom > 0 &&
+            uiW > 0 && uiH > 0)
+        {
+            cx = MulDiv(cx, uiW, rc.right);
+            cy = MulDiv(cy, uiH, rc.bottom);
+        }
+        *x = cx;
+        *y = cy;
+    }
+
+    LRESULT CALLBACK WndProcHook(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+    {
+        if (msg == WM_KEYDOWN && (int)wParam == g_toggleKey)
+        {
+            InputRouter::SetCapturing(!g_capturing);
+            return 0;
+        }
+
+        // Auto-repeat from a held key (bit 30) is of no interest to mods.
+        if (msg == WM_KEYDOWN && !g_capturing && !(lParam & (1 << 30)))
+            PushKey((int)wParam);
+
+        if (g_capturing)
+        {
+            int x, y;
+            switch (msg)
+            {
+            case WM_MOUSEMOVE:
+                ToUiCoords(lParam, &x, &y);
+                CefHost::MouseMove(x, y, (wParam & MK_LBUTTON) != 0);
+                return 0;
+
+            case WM_LBUTTONDOWN: case WM_LBUTTONUP:
+            case WM_RBUTTONDOWN: case WM_RBUTTONUP:
+            case WM_MBUTTONDOWN: case WM_MBUTTONUP:
+            {
+                ToUiCoords(lParam, &x, &y);
+                int button = (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP) ? 1
+                           : (msg == WM_MBUTTONDOWN || msg == WM_MBUTTONUP) ? 2 : 0;
+                bool down = (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN ||
+                             msg == WM_MBUTTONDOWN);
+                if (down) SetCapture(hwnd); else ReleaseCapture();
+                CefHost::MouseButton(x, y, button, down, 1);
+                return 0;
+            }
+
+            case WM_MOUSEWHEEL:
+            {
+                POINT p = { (short)LOWORD(lParam), (short)HIWORD(lParam) };
+                ScreenToClient(hwnd, &p);
+                ToUiCoords(MAKELPARAM(p.x, p.y), &x, &y);
+                CefHost::MouseWheel(x, y, GET_WHEEL_DELTA_WPARAM(wParam));
+                return 0;
+            }
+
+            case WM_MOUSELEAVE:
+                CefHost::MouseLeave();
+                return 0;
+
+            case WM_KEYDOWN: case WM_KEYUP:
+            case WM_SYSKEYDOWN: case WM_SYSKEYUP:
+            case WM_CHAR: case WM_SYSCHAR:
+                CefHost::Key(msg, wParam, lParam);
+                return 0;
+
+            case WM_SETCURSOR:
+                SetCursor(LoadCursor(NULL, IDC_ARROW));
+                return TRUE;
+            }
+        }
+
+        if (msg == WM_KILLFOCUS) CefHost::SetFocus(false);
+        if (msg == WM_SETFOCUS && g_capturing) CefHost::SetFocus(true);
+
+        return CallWindowProcA(g_origWndProc, hwnd, msg, wParam, lParam);
+    }
+}
+
+namespace InputRouter
+{
+    void Install(int toggleVirtualKey)
+    {
+        g_toggleKey = toggleVirtualKey;
+    }
+
+    void Update()
+    {
+        if (g_origWndProc) return;
+
+        HWND hwnd = Game::Window();
+        if (!hwnd || !IsWindow(hwnd)) return;
+
+        g_hwnd = hwnd;
+        g_origWndProc = (WNDPROC)SetWindowLongPtrA(hwnd, GWLP_WNDPROC,
+                                                   (LONG_PTR)WndProcHook);
+        LogIn("window 0x%p hooked (original 0x%p), UI key = 0x%02X",
+              hwnd, g_origWndProc, g_toggleKey);
+    }
+
+    void Shutdown()
+    {
+        if (g_origWndProc && g_hwnd && IsWindow(g_hwnd))
+            SetWindowLongPtrA(g_hwnd, GWLP_WNDPROC, (LONG_PTR)g_origWndProc);
+        g_origWndProc = 0;
+    }
+
+    bool IsCapturing() { return g_capturing; }
+
+    int PopKey()
+    {
+        if (g_keyTail == g_keyHead) return 0;
+        int vk = g_keys[g_keyTail];
+        g_keyTail = (g_keyTail + 1) % 16;
+        return vk;
+    }
+
+    void SetCapturing(bool capturing)
+    {
+        if (capturing == g_capturing) return;
+        g_capturing = capturing;
+
+        CefHost::SetFocus(capturing);
+        // The game hides the cursor; with the UI up it has to come back.
+        while (ShowCursor(capturing ? TRUE : FALSE) < 0 && capturing) {}
+        if (!capturing)
+        {
+            ReleaseCapture();
+            CefHost::MouseLeave();
+        }
+        LogIn("UI capture: %s", capturing ? "on" : "off");
+    }
+}

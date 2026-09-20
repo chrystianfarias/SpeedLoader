@@ -1,0 +1,194 @@
+<!--
+  The card that greets you on the boot splash.
+
+  It is on screen for a couple of seconds at most, so the animation has to read
+  immediately: the card rises into place, the chevrons run, and a sheen sweeps
+  the wordmark once it has settled. Everything is CSS - no rAF loop for a
+  decoration that shows up once per launch.
+-->
+<style>
+  :host { all: initial; }
+
+  .card {
+    position: absolute;
+    left: 40px;
+    bottom: 40px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px 14px 16px;
+    border-radius: 14px;
+    background: rgba(8, 10, 16, .82);
+    border: 1px solid rgba(255, 255, 255, .10);
+    box-shadow: 0 10px 34px rgba(0, 0, 0, .55);
+    backdrop-filter: blur(8px);
+    /* SVG text and the wordmark both need this stated: `all: initial` on the
+       host wipes the inherited font. */
+    font: 13px/1.3 "Segoe UI", system-ui, sans-serif;
+    color: #e9eef7;
+    user-select: none;
+    pointer-events: none;
+
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(14px);
+    transition: opacity .3s ease, transform .3s cubic-bezier(.2, .8, .3, 1),
+                visibility .3s;
+  }
+  .card.live {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+  }
+
+  /* Chevrons: three speed lines that run left to right, staggered. */
+  .chevrons {
+    display: flex;
+    gap: 2px;
+    align-items: center;
+  }
+  .chevrons i {
+    display: block;
+    width: 7px;
+    height: 15px;
+    background: linear-gradient(180deg, #6fd3ff, #2d7ff0);
+    /* A chevron cut out of a block, so there is no glyph to depend on. */
+    clip-path: polygon(0 0, 55% 0, 100% 50%, 55% 100%, 0 100%, 45% 50%);
+    opacity: .25;
+  }
+  .card.live .chevrons i { animation: run 1.15s ease-in-out infinite; }
+  .card.live .chevrons i:nth-child(2) { animation-delay: .12s; }
+  .card.live .chevrons i:nth-child(3) { animation-delay: .24s; }
+
+  @keyframes run {
+    0%, 70%, 100% { opacity: .22; transform: translateX(0); }
+    35%           { opacity: 1;   transform: translateX(2px); }
+  }
+
+  .text { display: grid; gap: 5px; }
+
+  .wordmark {
+    position: relative;
+    font-size: 17px;
+    letter-spacing: .17em;
+    line-height: 1;
+    white-space: nowrap;
+    color: #fff;
+  }
+  /* Both halves share the weight so the sheen overlay below lines up glyph for
+     glyph; the difference between them is colour, not weight. */
+  .wordmark b,
+  .wordmark span { font-weight: 650; }
+  .wordmark span { color: rgba(233, 238, 247, .55); }
+
+  /* The sheen is the same string painted again on top, with a moving highlight
+     band clipped to the glyphs. The first attempt slid a translucent rectangle
+     over the wordmark instead, which read as a white bar crossing the card -
+     a reflection has to live inside the letters. */
+  .wordmark::after {
+    content: attr(data-text);
+    position: absolute;
+    left: 0;
+    top: 0;
+    background: linear-gradient(100deg,
+      transparent 42%,
+      rgba(255, 255, 255, .95) 50%,
+      transparent 58%);
+    background-size: 220% 100%;
+    background-position: 130% 0;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    pointer-events: none;
+  }
+  /* Only once the card has landed, hence the delay. */
+  .card.live .wordmark::after {
+    animation: sheen 3.2s ease-in-out .5s infinite;
+  }
+  @keyframes sheen {
+    0%        { background-position: 130% 0; }
+    55%, 100% { background-position: -30% 0; }
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 10px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: rgba(233, 238, 247, .5);
+  }
+  .sep {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: rgba(233, 238, 247, .3);
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #7fe0a5;
+    box-shadow: 0 0 0 0 rgba(127, 224, 165, .55);
+  }
+  .card.live .dot { animation: beat 1.8s ease-out infinite; }
+  @keyframes beat {
+    0%   { box-shadow: 0 0 0 0 rgba(127, 224, 165, .55); }
+    70%  { box-shadow: 0 0 0 7px rgba(127, 224, 165, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(127, 224, 165, 0); }
+  }
+
+  /* A thin rule that fills as the card appears - the "loaded" gesture. */
+  .bar {
+    height: 2px;
+    border-radius: 1px;
+    background: rgba(255, 255, 255, .10);
+    overflow: hidden;
+  }
+  .bar i {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, #2d7ff0, #6fd3ff);
+  }
+  .card.live .bar i { animation: fill .85s cubic-bezier(.2, .8, .3, 1) .15s forwards; }
+  @keyframes fill { to { width: 100%; } }
+</style>
+
+<div class="card" id="card">
+  <div class="chevrons"><i></i><i></i><i></i></div>
+  <div class="text">
+    <!-- data-text feeds the sheen overlay; it has to match the text exactly. -->
+    <div class="wordmark" data-text="SPEEDLOADER"><b>SPEED</b><span>LOADER</span></div>
+    <div class="bar"><i></i></div>
+    <div class="status">
+      <span class="dot"></span>
+      <span id="count">ready</span>
+      <span class="sep"></span>
+      <span id="version"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const card = root.getElementById('card');
+  const count = root.getElementById('count');
+  const version = root.getElementById('version');
+
+  speedloader.on('show', (d) => {
+    const n = d && typeof d.mods === 'number' ? d.mods : 0;
+    count.textContent = n === 1 ? '1 mod loaded' : n + ' mods loaded';
+    version.textContent = d && d.version ? 'v' + d.version : '';
+
+    // The names go in the tooltip rather than on the card: the splash is not
+    // the place for a list, but it costs nothing to have it there.
+    if (d && d.names && d.names.length) card.title = d.names.join(' · ');
+
+    card.classList.add('live');
+  });
+
+  speedloader.on('hide', () => card.classList.remove('live'));
+
+  speedloader.send('ready');
+</script>

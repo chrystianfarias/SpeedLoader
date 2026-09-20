@@ -1,0 +1,44 @@
+# Build output
+build/
+out/
+bin/
+obj/
+install/
+
+# Dependencies fetched at build time
+third_party/cef/
+
+# Reference material (other people's projects, kept locally, not redistributed)
+refs/
+
+# Local mods that are not part of the public repository
+mods/pops/
+mods/hide-hud/
+mods/mod-menu/
+
+# Visual Studio / CMake, per machine
+.vs/
+.vscode/
+.idea/
+CMakeUserPresets.json
+*.user
+*.suo
+*.sln.docstates
+*.VC.db
+*.VC.opendb
+*.pdb
+*.ilk
+*.obj
+*.exp
+*.lib
+*.aps
+
+# Runtime output
+*.log
+*.dmp
+shot*.png
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
