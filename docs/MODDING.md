@@ -14,6 +14,10 @@ mods/my-mod/
 `main.js` is the only required part. A mod that only reads memory, plays a
 sound or patches a byte never needs a page.
 
+Writing in C++ instead, with an `.asi` that already hooks the game? You can
+take the interface without any of this:
+[NATIVE_PLUGINS.md](NATIVE_PLUGINS.md).
+
 - [The first mod](#the-first-mod)
 - [The manifest](#the-manifest)
 - [The two halves](#the-two-halves)

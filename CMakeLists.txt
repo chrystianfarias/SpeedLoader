@@ -75,6 +75,7 @@ set(SPEEDLOADER_SOURCES
     src/ui/InputRouter.cpp
     src/ui/DInputBlock.cpp
     src/bridge/Bridge.cpp
+    src/host/HostApi.cpp
 )
 
 add_library(SpeedLoader SHARED ${SPEEDLOADER_SOURCES})
@@ -102,3 +103,16 @@ add_executable(SpeedLoaderHelper WIN32 helper/helper_main.cpp)
 target_include_directories(SpeedLoaderHelper PRIVATE "${CEF_ROOT}")
 target_link_libraries(SpeedLoaderHelper PRIVATE libcef_lib libcef_dll_wrapper)
 SET_EXECUTABLE_TARGET_PROPERTIES(SpeedLoaderHelper)
+
+# ---------------------------------------------------------------- example plugin
+# A native .asi that takes its interface from SpeedLoader through sdk/speedloader.h
+# and nothing else - no CEF, no QuickJS, one source file. It is also what keeps
+# the public header honest: it is compiled on every build.
+add_library(HelloPanel SHARED examples/asi-plugin/HelloPanel.cpp)
+set_target_properties(HelloPanel PROPERTIES
+    OUTPUT_NAME "HelloPanel"
+    SUFFIX ".asi"
+    PREFIX "")
+target_include_directories(HelloPanel PRIVATE sdk)
+target_compile_definitions(HelloPanel PRIVATE
+    WIN32 _WINDOWS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)

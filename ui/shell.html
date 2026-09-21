@@ -129,11 +129,26 @@
   // A mod's HTML arrives as text: styles and markup go into the shadow root,
   // and its <script> tags run with the mod API in scope. innerHTML on its own
   // would execute no script at all.
+  // Who is on screen, by id. Mods from mods.json are mounted once at load;
+  // native panels (an .asi asking for a UI through the host API) arrive later
+  // and can be replaced or taken away, which is what this map is for.
+  const montados = new Map();
+
+  function unmount(id) {
+    const host = montados.get(id);
+    if (!host) return;
+    if (host.parentNode) host.parentNode.removeChild(host);
+    montados.delete(id);
+  }
+
   function mount(mod, html) {
+    unmount(mod.id);
+
     const host = document.createElement('div');
     host.className = 'sl-mod';
     host.dataset.mod = mod.id;
     document.body.appendChild(host);
+    montados.set(mod.id, host);
 
     const root = host.attachShadow({ mode: 'open' });
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -208,7 +223,40 @@
       }
     }
     console.log('[shell] ' + mods.length + ' UI(s) mounted');
+
+    // Native panels live only in the game's memory, not in mods.json, so the
+    // page has to ask for them back every time it loads - including after F5.
+    window.speedloader.send('sl:panels', null);
   }
+
+  // ------------------------------------------------------- native panels
+  //
+  // An .asi mod that is not written in JavaScript gets its interface here. It
+  // is mounted exactly like a mod's, with the same shadow root and the same
+  // "<id>:<channel>" convention, so the page cannot tell the difference.
+  async function mountPanel(panel) {
+    try {
+      const response = await fetch(panel.url + '?t=' + Date.now());
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      mount(panel, await response.text());
+      console.log('[shell] panel ' + panel.id + ' mounted');
+    } catch (e) {
+      fail('panel ' + panel.id + ' failed: ' + e.message);
+    }
+  }
+
+  window.speedloader.on('sl:mount', (panel) => {
+    if (panel && panel.id && panel.url) mountPanel(panel);
+  });
+
+  window.speedloader.on('sl:unmount', (d) => {
+    if (d && d.id) unmount(d.id);
+  });
+
+  window.speedloader.on('sl:panel-show', (d) => {
+    const host = d && montados.get(d.id);
+    if (host) host.style.display = d.show ? '' : 'none';
+  });
 
   // ------------------------------------------------------------------ console
   //

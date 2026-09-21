@@ -1,0 +1,58 @@
+<!--
+  The page for HelloPanel.asi. It is a fragment, not a document: it is mounted
+  into its own shadow root with `speedloader`, `root` and `mod` in scope - the
+  same thing a JavaScript mod's page gets, because as far as the shell is
+  concerned there is no difference.
+-->
+<style>
+  :host { all: initial; }
+
+  .card {
+    position: absolute;
+    left: 28px;
+    top: 28px;
+    padding: 14px 18px;
+    border-radius: 10px;
+    background: rgba(8, 12, 20, .72);
+    border: 1px solid rgba(111, 211, 255, .22);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+    font: 400 13px/1.35 "Segoe UI", system-ui, sans-serif;
+    color: #e9eef7;
+    backdrop-filter: blur(6px);
+  }
+
+  .title {
+    font-weight: 650;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    font-size: 11px;
+    color: rgba(233, 238, 247, .55);
+    margin-bottom: 6px;
+  }
+
+  .value {
+    font-size: 26px;
+    font-variant-numeric: tabular-nums;
+    color: #6fd3ff;
+  }
+
+  .hint { margin-top: 8px; font-size: 11px; color: rgba(233, 238, 247, .4); }
+</style>
+
+<div class="card">
+  <div class="title" id="title">panel</div>
+  <div class="value"><span id="uptime">0.0</span> s</div>
+  <div class="hint">F9 hides this</div>
+</div>
+
+<script>
+  const title = root.getElementById('title');
+  const uptime = root.getElementById('uptime');
+
+  speedloader.on('title', (t) => { title.textContent = t; });
+  speedloader.on('uptime', (s) => { uptime.textContent = s.toFixed(1); });
+
+  // The native side is already running when this page mounts, so the page is
+  // the one that says hello.
+  speedloader.send('ready');
+</script>

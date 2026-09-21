@@ -21,6 +21,10 @@ functions and objects; the HTML layer is a real Chromium — CSS, DevTools,
 **Writing a mod is what this project is for: the full guide is in
 [docs/MODDING.md](docs/MODDING.md).** What follows is the short version.
 
+Already have an `.asi` written in C++? It can borrow the Chromium layer for its
+interface, with one header and no JavaScript at all:
+[docs/NATIVE_PLUGINS.md](docs/NATIVE_PLUGINS.md).
+
 ## Writing a mod
 
 `mod.json`:
@@ -83,6 +87,26 @@ Speed comes from the car mirror (`player+0x04`, `+0x42C`, in m/s), the same
 copy that feeds the game's own dial. Reading it is cheap and reliable; writing
 to it does nothing, because physics ignores it (see `NOTES.md`).
 
+## Interfaces for native mods
+
+A mod written in C or C++ does not need the JavaScript side to get an
+interface. It includes [`sdk/speedloader.h`](sdk/speedloader.h), asks for a
+panel and talks to it by message:
+
+```c
+if (!sl)    { sl = SL_Connect(); return; }            // from your loop hook
+if (!panel) { panel = sl->panel_open("mymod", "MyMod\\ui.html"); return; }
+
+sl->panel_send_number(panel, "rpm", CurrentRpm());
+```
+
+The page is the same fragment a JavaScript mod writes, in the same shadow root,
+on the same channels — the shell cannot tell the two apart. There is no library
+to link: the header finds SpeedLoader in the process at runtime, so your mod
+still loads on a machine without it. Details in
+[docs/NATIVE_PLUGINS.md](docs/NATIVE_PLUGINS.md), and a complete mod in one
+file in [`examples/asi-plugin/`](examples/asi-plugin).
+
 ## How it works
 
 Everything lives inside the game process:
@@ -94,6 +118,7 @@ Everything lives inside the game process:
 | CEF (Chromium) | renders the UI off-screen, into memory |
 | D3D9 hook | composites the UI over the game, inside `EndScene` |
 | `SpeedLoaderHelper.exe` | Chromium's subprocesses (renderer, gpu) |
+| host API | the same UI, lent to `.asi` mods written in C++ |
 
 `main.js` and the page share no memory: they talk by message
 (`speed.ui.send` on one side, `speedloader.on` on the other), with JSON in

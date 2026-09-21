@@ -25,6 +25,24 @@ nothing; the bridge is a `CefProcessMessage` carrying a JSON string. It is the
 lowest common denominator between two different engines and avoids type
 marshalling.
 
+**Native mods borrow the UI, they do not get a second one.** The host API
+(`src/host/HostApi.cpp`, exported as `SpeedLoader_GetApi`) hands an .asi mod a
+panel mounted by the same shell, with the same `<id>:<channel>` convention a
+JavaScript mod's page uses. The alternative - a separate surface for native
+plugins - would have meant a second mounting path in the shell, a second set of
+z-order rules and two ways for a page to be written. As it is, the shell gained
+three messages (`sl:mount`, `sl:unmount`, `sl:panel-show`) and nothing else.
+
+Native panels exist only in memory: they are not in `mods.json`, because the
+mod that owns one is a DLL, not a folder. That is why the shell asks for them
+back with `sl:panels` every time it loads, F5 included.
+
+The API is queued on both sides. A plugin is somebody else's DLL and may call
+from any thread, so calls land in a queue and `Host::Tick` drains it on the
+game thread; messages the other way arrive through `Bridge::Drain`, which means
+a plugin's callback runs where its own hooks run and can read game memory
+without ceremony.
+
 **The helper is a separate executable.** Chromium requires one for its
 subprocesses (renderer, gpu, utility). `SpeedLoaderHelper.exe` is x86 like the
 game and knows nothing about NFSU2: it only hosts the renderer side of the

@@ -21,6 +21,7 @@
 #include "game/Vehicle.h"
 #include "game/EngineControl.h"
 #include "game/CarFx.h"
+#include "host/HostApi.h"
 #include "js/JsRuntime.h"
 #include "js/ModHost.h"
 #include "ui/CefHost.h"
@@ -100,6 +101,7 @@ namespace
             InputRouter::Update();
             D3D9Hook::Tick();
             Bridge::Drain();
+            Host::Tick();
 
             // Keys the game does not use (it reads no keyboard messages) turn
             // into events for the mods.
@@ -146,6 +148,10 @@ namespace
         Config::Init(self);
         Log("SpeedLoader 0.1.0 - NFS Underground 2 (SPEED2.EXE v1.2 NTSC)");
         Log("ini: %s", Config::g_iniPath);
+
+        // Before the hooks: another .asi may already be loaded and ask for
+        // a panel on its very first frame, which can come before ours.
+        Host::Install();
 
         g_uiEnabled = Config::GetBool("UI", "Enabled", true);
 

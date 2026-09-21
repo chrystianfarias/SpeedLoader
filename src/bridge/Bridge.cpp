@@ -1,6 +1,7 @@
 #include "Bridge.h"
 
 #include "core/Log.h"
+#include "host/HostApi.h"
 #include "js/JsRuntime.h"
 #include "ui/CefHost.h"
 
@@ -68,6 +69,10 @@ namespace Bridge
             LeaveCriticalSection(&g_lock);
             if (!has) break;
 
+            // Native panels first: their channels belong to no mod, and
+            // JsRuntime would only log them as addressed to nobody.
+            if (Host::HandleUiMessage(m.channel, m.json)) continue;
+
             Js::DispatchUiMessage(m.channel, m.json);
         }
     }
@@ -76,6 +81,7 @@ namespace Bridge
     {
         if (!g_ready) return;
         g_ready = false;
+        Host::Shutdown();
         CefHost::SetMessageHandler(nullptr);
         EnterCriticalSection(&g_lock);
         g_queue.clear();
