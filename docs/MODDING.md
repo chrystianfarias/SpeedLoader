@@ -226,6 +226,23 @@ eat clicks meant for the game. Anything the player must click needs
 `pointer-events: auto` on that element — and the player needs to press **F1**,
 which is what hands keyboard and mouse to the UI and gives them back.
 
+To make the panel look like the game instead of like a web page, link the kit
+that ships with the loader - the green-outlined panel, the grey list, the pill
+buttons, all of it in [UI-KIT.md](UI-KIT.md):
+
+```html
+<link rel="stylesheet" href="nfsu2.css">
+<div class="nfs nfs-at nfs-at--br">
+  <div class="nfs-panel nfs-panel--plain">
+    <div class="nfs-label">Speed</div>
+    <div class="nfs-readout">182</div>
+  </div>
+</div>
+```
+
+The href has no path in it on purpose: the shell clones your `<link>` into its
+own document, so `nfsu2.css` resolves from there, at any depth.
+
 It is a real Chromium: `fetch`, `<canvas>`, SVG, CSS animations, web fonts,
 DevTools. Relative paths resolve against the mod's own `ui/` folder, so images
 and extra scripts sit next to `index.html`. It is also a whole browser sharing

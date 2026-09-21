@@ -106,6 +106,14 @@ styles and markup you want on screen. Three things are in scope for its
 | `root` | the shadow root — use `root.getElementById`, not `document` |
 | `mod` | `{ id, name, url }` |
 
+For the game's own look - the green-outlined panel, the grey list, the pill
+buttons - link the kit the loader installs, described in [UI-KIT.md](UI-KIT.md):
+
+```html
+<link rel="stylesheet" href="nfsu2.css">
+<div class="nfs nfs-panel nfs-panel--plain"> ... </div>
+```
+
 It is a real Chromium: `fetch`, `<canvas>`, SVG, animations, web fonts,
 DevTools. Relative paths inside the page resolve against its own folder, so
 images and extra scripts sit next to `ui.html`.

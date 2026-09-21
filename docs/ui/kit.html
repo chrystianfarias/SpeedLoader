@@ -1,0 +1,273 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>nfsu2.css</title>
+<!--
+  Every piece of ui/nfsu2.css on one page, to be opened in a browser - no game,
+  no build, no loader. Double-click it.
+
+  The backdrop is a stand-in for the game: a dark night street with a couple of
+  lights in it, so the translucency and the glow read the way they will in
+  front of a real frame.
+-->
+<link rel="stylesheet" href="../../ui/nfsu2.css">
+<style>
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background:
+      radial-gradient(900px 500px at 18% 8%, rgba(70, 90, 140, .35), transparent 60%),
+      radial-gradient(700px 420px at 82% 22%, rgba(190, 120, 40, .22), transparent 62%),
+      radial-gradient(1000px 600px at 50% 110%, rgba(40, 60, 50, .5), transparent 70%),
+      linear-gradient(180deg, #121821 0%, #0c1014 45%, #07090c 100%);
+    font: 14px/1.4 "Segoe UI", system-ui, sans-serif;
+    color: #cfd6dd;
+  }
+
+  /* Headlights on the wet road, purely so the panels have something to sit
+     over that is not flat. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: auto 0 0 0;
+    height: 42%;
+    background:
+      radial-gradient(420px 120px at 30% 40%, rgba(255, 210, 120, .16), transparent 70%),
+      radial-gradient(360px 100px at 72% 60%, rgba(120, 190, 255, .12), transparent 70%),
+      repeating-linear-gradient(95deg, rgba(255, 255, 255, .03) 0 2px, transparent 2px 120px);
+    pointer-events: none;
+  }
+
+  .page {
+    position: relative;
+    max-width: 1220px;
+    margin: 0 auto;
+    padding: 34px 28px 80px;
+    display: grid;
+    gap: 26px;
+  }
+
+  header h1 {
+    margin: 0 0 4px;
+    font: 650 26px/1.1 "Segoe UI", system-ui, sans-serif;
+    color: #e6edf5;
+  }
+  header p { margin: 0; color: #8b95a1; max-width: 70ch; }
+  header code { color: #b9e75b; }
+
+  .section { display: grid; gap: 10px; }
+  .section > h2 {
+    margin: 0;
+    font: 600 11px/1 "Segoe UI", system-ui, sans-serif;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: #6f7a86;
+  }
+
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 22px; align-items: start; }
+  .row-of { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+
+  /* The snippet under each block: what to write to get it. */
+  .code {
+    font: 12px/1.5 ui-monospace, Consolas, monospace;
+    color: #7f8b98;
+    background: rgba(0, 0, 0, .35);
+    border-left: 2px solid rgba(185, 231, 91, .35);
+    padding: 8px 12px;
+    white-space: pre-wrap;
+    border-radius: 0 4px 4px 0;
+  }
+
+  /* The demo panels are positioned by the page, not by the kit, so they sit in
+     the flow instead of over a game frame. */
+  .nfs-panel { pointer-events: auto; }
+</style>
+
+<div class="page">
+  <header>
+    <h1>nfsu2.css</h1>
+    <p>
+      Underground 2's own furniture as classes: the glowing green panel, the
+      grey list with its washed selection, the pill buttons, the Pause tiles.
+      Everything is scoped under <code>.nfs</code>, and the whole kit scales
+      from one variable, <code>--nfs-size</code>.
+    </p>
+  </header>
+
+  <!-- ----------------------------------------------------------- panel -->
+  <section class="section">
+    <h2>Panel, title, list - the World Map screen</h2>
+    <div class="nfs">
+      <div class="nfs-panel">
+        <div class="nfs-panel__head">
+          <h1 class="nfs-title">World Map</h1>
+          <button class="nfs-btn-round">&#8592;</button>
+          <div class="nfs-subtitle" style="flex:1">Full Map</div>
+          <button class="nfs-btn-round">&#8594;</button>
+        </div>
+
+        <div class="nfs-panel__body">
+          <div class="nfs-split" style="min-height: 320px">
+            <div class="nfs-split__side">
+              <ul class="nfs-list">
+                <li class="nfs-row nfs-row--head"><span class="nfs-tri"></span><span class="nfs-row__label">Your Car</span></li>
+                <li class="nfs-row nfs-row--head"><span class="nfs-tri nfs-tri--orange"></span><span class="nfs-row__label">Opponent Car</span></li>
+                <li class="nfs-row nfs-row--on nfs-row--clickable"><span class="nfs-check">&#10003;</span><span class="nfs-dot nfs-dot--green"></span><span class="nfs-row__label">Body Shop</span></li>
+                <li class="nfs-row nfs-row--clickable"><span class="nfs-check">&#10003;</span><span class="nfs-dot nfs-dot--cyan"></span><span class="nfs-row__label">Car Lot</span></li>
+                <li class="nfs-row nfs-row--clickable"><span class="nfs-check">&#10003;</span><span class="nfs-dot nfs-dot--yellow"></span><span class="nfs-row__label">Car Specialties Shop</span></li>
+                <li class="nfs-row nfs-row--clickable"><span class="nfs-check">&#10003;</span><span class="nfs-dot nfs-dot--red"></span><span class="nfs-row__label">Graphics Shop</span></li>
+                <li class="nfs-row nfs-row--clickable"><span class="nfs-check">&#10003;</span><span class="nfs-dot nfs-dot--blue"></span><span class="nfs-row__label">Performance Shop</span></li>
+                <li class="nfs-row nfs-row--clickable"><span class="nfs-check">&#10003;</span><span class="nfs-dot nfs-dot--purple"></span><span class="nfs-row__label">Garage</span></li>
+                <li class="nfs-row nfs-row--empty"></li>
+                <li class="nfs-row nfs-row--empty"></li>
+                <li class="nfs-row nfs-row--empty"></li>
+                <li class="nfs-row nfs-row--empty"></li>
+              </ul>
+            </div>
+
+            <div class="nfs-split__main" style="padding: 18px">
+              <div class="nfs-label">Selected</div>
+              <div class="nfs-readout">Body Shop</div>
+              <div class="nfs-rule"></div>
+              <div class="nfs-kv"><span class="nfs-kv__k">Distance</span><span class="nfs-kv__v">1.4 km</span></div>
+              <div class="nfs-kv"><span class="nfs-kv__k">Visited</span><span class="nfs-kv__v">12 times</span></div>
+              <div class="nfs-kv"><span class="nfs-kv__k">Parts installed</span><span class="nfs-kv__v">27</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="nfs-panel__foot">
+          <button class="nfs-btn">Back</button>
+          <button class="nfs-btn">Activate GPS</button>
+        </div>
+      </div>
+    </div>
+    <div class="code">&lt;div class="nfs"&gt;
+  &lt;div class="nfs-panel"&gt;
+    &lt;div class="nfs-panel__head"&gt;&lt;h1 class="nfs-title"&gt;World Map&lt;/h1&gt;&lt;/div&gt;
+    &lt;ul class="nfs-list"&gt;
+      &lt;li class="nfs-row nfs-row--on"&gt;&lt;span class="nfs-check"&gt;&amp;#10003;&lt;/span&gt;
+          &lt;span class="nfs-dot nfs-dot--green"&gt;&lt;/span&gt;
+          &lt;span class="nfs-row__label"&gt;Body Shop&lt;/span&gt;&lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</div>
+  </section>
+
+  <!-- ------------------------------------------------------------ pause -->
+  <section class="section">
+    <h2>Tiles, track, caption - the Pause screen</h2>
+    <div class="nfs">
+      <div class="nfs-panel">
+        <div class="nfs-panel__head"><h1 class="nfs-title">Pause</h1></div>
+
+        <div class="nfs-panel__body" style="display: grid; gap: .55em">
+          <div class="nfs-track" style="--value: .08">
+            <div class="nfs-track__fill"></div>
+            <div class="nfs-track__knob"></div>
+          </div>
+
+          <div class="nfs-tiles">
+            <button class="nfs-tile">Restart Race</button>
+            <button class="nfs-tile nfs-tile--on">Return to Explore Mode</button>
+            <button class="nfs-tile">Garage</button>
+            <button class="nfs-tile" style="flex: 0 0 4.2em">&#8594;</button>
+          </div>
+
+          <div class="nfs-caption">Return to Explore Mode</div>
+        </div>
+
+        <div class="nfs-panel__foot">
+          <button class="nfs-btn">Back</button>
+          <button class="nfs-btn">Continue</button>
+        </div>
+      </div>
+    </div>
+    <div class="code">&lt;div class="nfs-tiles"&gt;
+  &lt;button class="nfs-tile"&gt;Restart Race&lt;/button&gt;
+  &lt;button class="nfs-tile nfs-tile--on"&gt;Return to Explore Mode&lt;/button&gt;
+&lt;/div&gt;
+&lt;div class="nfs-caption"&gt;Return to Explore Mode&lt;/div&gt;</div>
+  </section>
+
+  <!-- ------------------------------------------------------------ parts -->
+  <section class="section">
+    <h2>The parts on their own</h2>
+    <div class="cols">
+
+      <div class="section">
+        <h2>Buttons</h2>
+        <div class="nfs">
+          <div class="nfs-panel nfs-panel--plain">
+            <div class="row-of">
+              <button class="nfs-btn">Back</button>
+              <button class="nfs-btn is-on">Selected</button>
+              <button class="nfs-btn" disabled>Locked</button>
+            </div>
+            <div class="row-of" style="margin-top: 12px">
+              <button class="nfs-btn nfs-btn--wide">Activate GPS</button>
+              <button class="nfs-btn-round">&#8592;</button>
+              <button class="nfs-btn-round is-on">&#8594;</button>
+            </div>
+          </div>
+        </div>
+        <div class="code">&lt;button class="nfs-btn"&gt;Back&lt;/button&gt;
+&lt;button class="nfs-btn is-on"&gt;Selected&lt;/button&gt;
+&lt;button class="nfs-btn-round"&gt;&amp;#8594;&lt;/button&gt;</div>
+      </div>
+
+      <div class="section">
+        <h2>Readout and meters</h2>
+        <div class="nfs">
+          <div class="nfs-panel nfs-panel--plain">
+            <div class="nfs-label">Speed</div>
+            <div class="nfs-readout">182 <span style="font-size:.45em">km/h</span></div>
+            <div class="nfs-rule"></div>
+            <div class="nfs-label" style="margin-bottom:6px">Nitrous</div>
+            <div class="nfs-track" style="--value: .72"><div class="nfs-track__fill"></div></div>
+            <div class="nfs-label" style="margin: 12px 0 6px">Damage</div>
+            <div class="nfs-track" style="--value: .21"><div class="nfs-track__fill"></div></div>
+          </div>
+        </div>
+        <div class="code">&lt;div class="nfs-track" style="--value: .72"&gt;
+  &lt;div class="nfs-track__fill"&gt;&lt;/div&gt;
+&lt;/div&gt;</div>
+      </div>
+
+      <div class="section">
+        <h2>Legend</h2>
+        <div class="nfs">
+          <div class="nfs-panel nfs-panel--plain">
+            <ul class="nfs-list">
+              <li class="nfs-row"><span class="nfs-dot nfs-dot--green"></span><span class="nfs-row__label">Body Shop</span><span class="nfs-row__value">6</span></li>
+              <li class="nfs-row"><span class="nfs-dot nfs-dot--cyan"></span><span class="nfs-row__label">Car Lot</span><span class="nfs-row__value">3</span></li>
+              <li class="nfs-row"><span class="nfs-dot nfs-dot--yellow"></span><span class="nfs-row__label">Specialties</span><span class="nfs-row__value">4</span></li>
+              <li class="nfs-row"><span class="nfs-dot nfs-dot--red"></span><span class="nfs-row__label">Graphics</span><span class="nfs-row__value">5</span></li>
+              <li class="nfs-row"><span class="nfs-dot nfs-dot--blue"></span><span class="nfs-row__label">Performance</span><span class="nfs-row__value">7</span></li>
+              <li class="nfs-row"><span class="nfs-dot nfs-dot--purple"></span><span class="nfs-row__label">Garage</span><span class="nfs-row__value">2</span></li>
+            </ul>
+          </div>
+        </div>
+        <div class="code">&lt;span class="nfs-dot nfs-dot--purple"&gt;&lt;/span&gt;</div>
+      </div>
+
+      <div class="section">
+        <h2>Sizes</h2>
+        <div class="nfs nfs--sm">
+          <div class="nfs-panel nfs-panel--plain" style="margin-bottom: 14px">
+            <div class="nfs-title" style="font-size:1.4em">Small</div>
+            <div class="nfs-kv"><span class="nfs-kv__k">--nfs-size</span><span class="nfs-kv__v">12px</span></div>
+          </div>
+        </div>
+        <div class="nfs nfs--lg">
+          <div class="nfs-panel nfs-panel--plain">
+            <div class="nfs-title" style="font-size:1.4em">Large</div>
+            <div class="nfs-kv"><span class="nfs-kv__k">--nfs-size</span><span class="nfs-kv__v">19px</span></div>
+          </div>
+        </div>
+        <div class="code">&lt;div class="nfs nfs--sm"&gt;...&lt;/div&gt;
+&lt;div class="nfs" style="--nfs-size: 22px"&gt;...&lt;/div&gt;</div>
+      </div>
+
+    </div>
+  </section>
+</div>

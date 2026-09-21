@@ -25,6 +25,12 @@ Already have an `.asi` written in C++? It can borrow the Chromium layer for its
 interface, with one header and no JavaScript at all:
 [docs/NATIVE_PLUGINS.md](docs/NATIVE_PLUGINS.md).
 
+Want the panel to look like the game rather than like a web page?
+[`ui/nfsu2.css`](ui/nfsu2.css) is Underground 2's own furniture as classes â€”
+the green-outlined panel, the grey list, the pill buttons
+([docs/UI-KIT.md](docs/UI-KIT.md), and
+[docs/ui/kit.html](docs/ui/kit.html) opens in a browser without the game).
+
 ## Writing a mod
 
 `mod.json`:
