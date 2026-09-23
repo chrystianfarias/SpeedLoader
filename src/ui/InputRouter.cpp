@@ -48,15 +48,25 @@ namespace
 
     LRESULT CALLBACK WndProcHook(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     {
-        if (msg == WM_KEYDOWN && (int)wParam == g_toggleKey)
+        // WM_SYSKEYDOWN counts as a key press too. Windows sends F10 and
+        // anything held with Alt down that path, not WM_KEYDOWN, so a mod that
+        // binds F10 would wait forever for a message that never comes - which
+        // is exactly what happened the first time one did.
+        const bool keyDown = (msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN);
+
+        if (keyDown && (int)wParam == g_toggleKey)
         {
             InputRouter::SetCapturing(!g_capturing);
             return 0;
         }
 
         // Auto-repeat from a held key (bit 30) is of no interest to mods.
-        if (msg == WM_KEYDOWN && !g_capturing && !(lParam & (1 << 30)))
+        if (keyDown && !g_capturing && !(lParam & (1 << 30)))
             PushKey((int)wParam);
+
+        // Swallow the F10 that got this far: left alone, DefWindowProc opens
+        // the window menu and the game loses focus mid-race.
+        if (msg == WM_SYSKEYDOWN && (int)wParam == VK_F10) return 0;
 
         if (g_capturing)
         {

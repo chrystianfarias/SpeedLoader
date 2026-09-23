@@ -140,7 +140,7 @@ speed.off("frame", fn);                      // without fn, removes every listen
 
 `"frame"` runs 60+ times a second inside the game's loop: what you put there is
 part of the game's frame budget. Throttle anything the player cannot see at that
-rate — this is the whole of the tachometer's logic:
+rate — a tachometer's whole logic is this:
 
 ```js
 const RATE_MS = 1000 / 30;
@@ -398,6 +398,10 @@ normally use, hot reload included.
 - `scripts\SpeedLoader.log` — `console.log` from `main.js` lands here prefixed
   with `js`, and so does the page's, through CEF's console hook. An exception in
   a mod is logged with its stack and does not stop the others.
+- **`console.log` also shows up on screen**, in the same panel `speed.print`
+  writes to: the line about a car appearing is worth most in the second the car
+  appears, not in a file read afterwards. `[UI] Console=0` in the ini turns the
+  echo off and leaves the log file alone.
 - `speed.ui.devtools()` — the real Chromium DevTools, on the real page.
   `[UI] DevTools=1` in the ini opens it at startup.
 - `speed.print` — the in-game console, for when the log file is too far away to

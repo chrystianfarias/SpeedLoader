@@ -13,10 +13,11 @@ third_party/asi-loader/
 # Reference material (other people's projects, kept locally, not redistributed)
 refs/
 
-# Local mods that are not part of the public repository
-mods/pops/
-mods/hide-hud/
-mods/mod-menu/
+# Mods and native plugins are local: the repository is the platform, not a
+# collection of what happens to be installed on one machine. The examples that
+# are meant to be read live in examples/.
+mods/
+plugins/
 
 # Visual Studio / CMake, per machine
 .vs/

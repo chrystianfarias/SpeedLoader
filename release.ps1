@@ -86,13 +86,14 @@ Copy-Item (Join-Path $root "ui") $runtime -Recurse -Force
 $modsOut = Join-Path $runtime "mods"
 New-Item -ItemType Directory -Force -Path $modsOut | Out-Null
 
-$sources = Get-ChildItem (Join-Path $root "mods") -Directory
+$modsDir = Join-Path $root "mods"
+$sources = if (Test-Path $modsDir) { @(Get-ChildItem $modsDir -Directory) } else { @() }
 if ($Mods) {
     $sources = $sources | Where-Object { $Mods -contains $_.Name }
     $missing = $Mods | Where-Object { $sources.Name -notcontains $_ }
     if ($missing) { throw "mod not found: $($missing -join ', ')" }
 }
-if (-not $sources) { throw "no mods to ship" }
+if ($Mods -and -not $sources) { throw "no mods to ship" }
 $sources | ForEach-Object { Copy-Item $_.FullName $modsOut -Recurse -Force }
 
 # ---- paperwork -----------------------------------------------------------
@@ -144,7 +145,7 @@ if (-not $NoAsiLoader) {
 
 ($parts -join "`r`n") | Set-Content (Join-Path $stage "LICENSE.txt") -Encoding utf8
 
-$shipped = ($sources.Name | Sort-Object) -join ", "
+$shipped = if ($sources) { ($sources.Name | Sort-Object) -join ", " } else { "none" }
 $loaderLines = if ($NoAsiLoader) {
 @"
   You need an .asi loader already installed - this package does not bring one.

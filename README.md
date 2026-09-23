@@ -26,7 +26,7 @@ interface, with one header and no JavaScript at all:
 [docs/NATIVE_PLUGINS.md](docs/NATIVE_PLUGINS.md).
 
 Want the panel to look like the game rather than like a web page?
-[`ui/nfsu2.css`](ui/nfsu2.css) is Underground 2's own furniture as classes â€”
+[`ui/nfsu2.css`](ui/nfsu2.css) is Underground 2's own furniture as classes —
 the green-outlined panel, the grey list, the pill buttons
 ([docs/UI-KIT.md](docs/UI-KIT.md), and
 [docs/ui/kit.html](docs/ui/kit.html) opens in a browser without the game).
@@ -83,15 +83,18 @@ calls, drawing inside the 3D scene, and the habits that keep a mod from
 crashing someone else's game — is in
 **[docs/MODDING.md](docs/MODDING.md)**.
 
-## The example
+## Mods live outside the repository
 
-| Mod | What it shows |
-|---|---|
-| `mods/tachometer` | an HTML dial fed by `speed.game.telemetry()`, throttled to 30 Hz: the mod half, the page half, and the message between them |
+`mods/` and `plugins/` are ignored by git: this repository is the platform, not
+a collection of whatever happens to be installed on one machine. Drop your own
+folder into `mods\` and it loads — the loader reads the directory at startup
+and nothing has to be registered.
 
-Speed comes from the car mirror (`player+0x04`, `+0x42C`, in m/s), the same
-copy that feeds the game's own dial. Reading it is cheap and reliable; writing
-to it does nothing, because physics ignores it (see `NOTES.md`).
+What is here to be read is [`examples/asi-plugin/`](examples/asi-plugin), a
+complete native mod in one file, and the guides. Speed, to pick the first thing
+most mods reach for, comes from the car mirror (`player+0x04`, `+0x42C`, in
+m/s), the same copy that feeds the game's own dial: cheap to read, pointless to
+write, because physics ignores it (see `NOTES.md`).
 
 ## Interfaces for native mods
 
@@ -171,7 +174,7 @@ release\SpeedLoader-0.1.0\
 ```
 .\release.ps1                          build if needed, stage and zip
 .\release.ps1 -Version 1.0.0           name the package
-.\release.ps1 -Mods tachometer         ship only these mods
+.\release.ps1 -Mods my-mod             ship only these mods
 .\release.ps1 -NoZip                   leave the folder, skip the .zip
 .\release.ps1 -NoAsiLoader             package without the loader
 ```

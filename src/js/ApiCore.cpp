@@ -2,7 +2,9 @@
 #include "Api.h"
 
 #include "JsRuntime.h"
+#include "core/Config.h"
 #include "core/Log.h"
+#include "ui/CefHost.h"
 
 #include <string>
 
@@ -37,19 +39,47 @@ namespace
         return line;
     }
 
+    // O console na tela ja existe: e o mesmo painel de speed.print, no canal
+    // "sl:log", com barra de comando e tudo. console.log so nao chegava nele.
+    //
+    // Passa pelo JSON.stringify do proprio QuickJS, como o Print faz, porque
+    // aspas e acentos precisam atravessar inteiros - e escapar isso na mao,
+    // numa funcao chamada dezenas de vezes por segundo por um mod em
+    // desenvolvimento, e errado duas vezes.
+    void Echo(JSContext* ctx, const char* id, const std::string& text)
+    {
+        static const bool on = Config::GetBool("UI", "Console", true);
+        if (!on) return;
+
+        JSValue payload = JS_NewObject(ctx);
+        JS_SetPropertyStr(ctx, payload, "mod", JS_NewString(ctx, id ? id : "?"));
+        JS_SetPropertyStr(ctx, payload, "text", JS_NewString(ctx, text.c_str()));
+
+        JSValue json = JS_JSONStringify(ctx, payload, JS_UNDEFINED, JS_UNDEFINED);
+        const char* enc = JS_ToCString(ctx, json);
+        if (enc) { CefHost::SendToUi("sl:log", enc); JS_FreeCString(ctx, enc); }
+        JS_FreeValue(ctx, json);
+        JS_FreeValue(ctx, payload);
+    }
+
     JSValue ConsoleLog(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
         Js::Mod* mod = Js::Owner(ctx);
-        LogJs("[%s] %s", mod ? mod->id.c_str() : "?",
-              Join(ctx, argc, argv).c_str());
+        const char* id = mod ? mod->id.c_str() : "?";
+        std::string line = Join(ctx, argc, argv);
+        LogJs("[%s] %s", id, line.c_str());
+        Echo(ctx, id, line);
         return JS_UNDEFINED;
     }
 
     JSValue ConsoleError(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv)
     {
         Js::Mod* mod = Js::Owner(ctx);
-        LogJs("[%s] ERROR %s", mod ? mod->id.c_str() : "?",
-              Join(ctx, argc, argv).c_str());
+        const char* id = mod ? mod->id.c_str() : "?";
+        std::string line = Join(ctx, argc, argv);
+        LogJs("[%s] ERROR %s", id, line.c_str());
+        // O painel nao tem nivel; a cor vem das marcacoes de speed.print.
+        Echo(ctx, id, "{vermelho}ERRO{/} " + line);
         return JS_UNDEFINED;
     }
 

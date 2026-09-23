@@ -192,6 +192,584 @@ references that table** — they are debug names left over in the build. The mas
 itself probably exists, but finding what tests it is a separate job; the
 package switch solved the case for far less.
 
+## Spawning a car — the creation path
+
+Mapped statically, from the binary. The entry point the game itself uses is
+
+```
+0x606480  __fastcall CreateCar(transform /*ecx*/, slot /*edx*/,
+                               int driverType, void* spawnNode)
+```
+
+and it is called once per racer from `0x6065B0`, the function that puts the
+grid on the track. That one is worth reading as documentation: it asks
+`0x5EB5D0(6, &out)` for six starting-grid transforms (0x20 bytes each), walks
+the racer array and, for each entry, calls `CreateCar` with either the grid
+transform or the entry's own position (`entry+0x920`, used when the byte at
+`entry+0x91C` is set).
+
+**The racer array** is the list of cars the world is supposed to have:
+
+| Address | What |
+|---|---|
+| `[0x89E810]` | base of the array, entries of **0x940 bytes** |
+| `0x89E814` | how many |
+| `entry+0x04` | 1 the player, 2 an opponent |
+| `entry+0x10` | the **car spec** (see below) |
+| `entry+0x8F8` | streaming handle of the model |
+| `entry+0x91C` | "has its own spawn position" |
+| `entry+0x920` | that position, as the 0x20-byte transform |
+
+The same 0x940-ish shape shows up in the traffic manager (`0x412950`) and in
+the frontend's car display: everything that needs a car on screen holds one of
+these.
+
+**The car spec** (`entry+0x10`, ~0x900 bytes, copied by `0x413440`) starts with
+the model INDEX into the table at `[0x8A1CCC]` (46 entries of 0x890), then
+colour bytes at +4..+7, then the customization from +0x10 on. This is what
+picking a model and dressing the car will write into.
+
+**What `CreateCar` does**, and what a mod can do instead, since `speed.call`
+cannot pass `edx`:
+
+```
+0x639CE0  thiscall(spec, flag, 1, 1, 1)     prepares the render side
+0x575620  cdecl new(0x9E0)                  the car object
+0x604260  thiscall Car::Car(slot, &pos, word, heading)   ret 0x10
+0x5EBA30  thiscall Car::SetAIType(0..5)     1 racer, 4 traffic; 0 is what the
+                                            constructor already installed
+0x5F46A0  thiscall Car::SetDriverType(t)    the switch at the end of every
+                                            autopilot call (0x5FAE20/0x5FAF10)
+[0x890080]                                  the world's car list: +0 head,
+                                            +4 tail, and the car's own +0/+4
+                                            are next/prev
+```
+
+The constructor takes the position as a plain vec3 (it reads +0, +4, +8 only)
+and the heading as a float: zero takes a different branch (`0x5DA3D0`), any
+other value goes through `0x5DA410` and lands as a direction vector in
+`car+0x60`. The position ends up in `car+0x510`, and `car+0x14` points back at
+the slot.
+
+One trap found before writing any code: `SetDriverType` indexes two arrays,
+`0x89CD50` and `0x89CDA8`, by `word[car+8]` — and the constructor leaves that
+word at **zero**, the same index the player's car uses. Calling it on a spawned
+car zeroes the player's entry and takes his controls away. A parked car does
+not need it: the constructor already gives the car the null driver
+(vtable `0x7A5BB0`).
+
+`mods/spawn-car` does this: it clones the player's slot, writes another model
+index into the spec, waits for the model to stream in, and builds the car at a
+saved coordinate.
+
+**Choosing the model** is writing the index of the table at `[0x8A1CCC]` into
+the first dword of the spec — and then getting that model off the disk, which
+is what the game does before every race (`0x57F6D1`) and for every traffic car
+(`0x412B97`):
+
+```
+0x8A3288              the car loader
+0x63BC70  thiscall    RequestLoad(spec*, a, b) -> handle, kept at slot+0x8F8
+0x63BCD0  thiscall    Start(callback, param)
+0x63AE00  thiscall    Release(handle)
+```
+
+`Start` refuses to do anything while `loader+0x14` is not zero — it is the
+first test in the function. That field is the mod's "still loading": no native
+callback stub needed, just poll it from the frame hook and build the car when
+it clears.
+
+### Asking for a model that is not loaded — what actually happens
+
+It does not work yet, and the failure is worth writing down because it looked
+like three separate bugs and was one.
+
+Requesting a model the world does not have swaps the TEXTURES of the cars
+already on screen, leaves their geometry alone, and the spawned car comes out
+wearing the old model. Then, on the first collision, the game dies at
+`0x593A5E`:
+
+```
+00593A5B  mov eax, dword ptr [ecx + 0x68]
+00593A5E  mov edx, dword ptr [eax + 0x158]     <- eax is null
+```
+
+`ecx` there is the car's simulation object, `car+0x3C`, built by `0x5AEC20`;
+`+0x68` is where it hangs **the model's data**, and `0x5AEC20` only zeroes it.
+So: the model never really loaded, the constructor did not complain, and the
+car walked around for a while with no data behind it until something asked.
+
+Two things fall out of that:
+
+- The constructor **already calls `Car::SetSpec` (0x601110)** at `0x6046AA`,
+  with its own slot's spec. Applying the spec is not a step a mod has to do
+  after the fact — which also means the model the car ends up with is readable
+  at `car+0x0C`, the model-table entry SetSpec resolved. Logging what was asked
+  for next to what was born is what turned this from guesswork into a fact.
+- `car+0x3C -> +0x68` is **not** the model's data, which is what the first
+  guard assumed. An x-ray printed in-game settled it: every traffic car in the
+  world drives around with that field null, and only the player has it — plus
+  one opponent, at the exact moment it picked up AI type 3. It is the
+  controller object that `0x5EBA30` builds. The honest test for a spawned car
+  is comparing the model that was asked for with `car+0x0C`, the model-table
+  entry SetSpec actually resolved; a car wearing the neighbour's geometry is
+  thrown away without ever entering the world list.
+
+### The slot array — cars live in a fixed table, not in a mod's buffer
+
+`0x5ED5F0`, the container's constructor, writes `[edx+0x70] = 0x890160`: the
+slots are a **static array** that is born with the game, 0x940 bytes each,
+with the count at `+0x74` (`0x89E814`). And a car's index — the word at
+`car+8` — is its position in that table: the traffic SUV at index 7 lives at
+`0x890160 + 7*0x940`, which the x-ray confirmed address by address.
+
+That is the thing the mod had wrong from the start. A car does not carry a
+spec the mod can hand it; it belongs to a slot in this table, and the loader
+finds the model's owner by walking the same table (`0x63B360`). A clone of
+the player's slot sitting in memory the mod allocated is not in the table, so
+nothing claims the model that gets loaded — the geometry goes nowhere, the
+textures land on top of whoever is already there, and a car built from it has
+`word[car+8] = 0`, which is the player's own index.
+
+The free-roam x-ray also shows how much room there is: the player at index 0,
+opponents at 1 to 3, and the traffic filling 4 to 13 — all of it streamed in
+while driving, models the race never asked for. Traffic is the proof that
+loading an arbitrary model at runtime works; it just does it through a slot.
+
+**Occupying a slot** is `0x601600`, `__thiscall AddCarSlot(prototype)` on the
+container: it copies the prototype (`0x5FC130`) into `base + count*0x940` and
+increments the count, refusing above `0x16` — **22 slots, and no more**. The
+copy takes the four header bytes, the type at `+4`, the spec, and the tail
+from `+0x900`; it deliberately leaves `+0x8F8`, the streaming handle, to
+whatever the destination slot had, which in a free slot is zero.
+
+A free slot is easy to recognise in the table: type 0 and a spec whose model
+index is `-1`, the same `-1` that makes `0x639CE0` return immediately. A
+free-roam session uses 14 of the 22, so there are eight to spawn into.
+
+The other fields the x-ray made legible:
+
+| | |
+|---|---|
+| `slot+0x01` | an id byte — 0 the player, 50-59 traffic, 100+ free-roam racers; the container's `find` (`0x5ED920`) searches by it |
+| `slot+0x03` | starting-grid position, 0 for traffic |
+| `slot+0x04` | 1 player, 2 racer, 3 traffic |
+| `slot+0x8F8` | the load handle, **shared between slots using the same model** — two TAXI02 slots both point at handle 8 |
+| `slot+0x908` | the model index again |
+
+### The model index lives in the spec twice
+
+Occupying a real slot fixed the ownership, and the car still came out wearing
+the player's body. `car+0x0C` said TIBURON while the geometry on screen was
+the player's PEUGOT, with the player's parts fighting over it — which is what
+made the textures land on the wrong car.
+
+The reason is that the spec keeps the model in more than one place, and
+`0x610270` — `__thiscall CarSpec::Init(model, ?, colour, colour)`, `ret 0x10`
+— is the function that knows all of them:
+
+```
+[spec+0x00] = model            the one a mod finds first, and the only one it
+                               is tempting to write
+zero 0xAA dwords from +0x590   the parts
+0x01010101 across +0x838
+0x5A7890(spec+0x10, model)     writes the model AGAIN, at spec+0x10 and at
+                               spec+0x384
+```
+
+`car+0x0C` is resolved from `spec+0x00`, so the car reports the model that was
+asked for; the geometry comes from the other copy, which still said PEUGOT.
+Writing one dword was never going to be enough — and the parts inherited from
+the player's car were being applied to a body that has no such parts.
+
+### A car with no parts has no body
+
+`Init` leaves the spec clean, and too clean: it zeroes the parts (0xAA dwords
+from `spec+0x590`), and in Underground 2 **the body is a part**. A car spawned
+from a freshly-initialised spec arrives as a shadow and nothing else — the
+shadow is found because it is a separate resource, `"%s_SHADOWIG"` looked up
+by hash (`0x4901D0`), which also proves the model itself did load. Meanwhile
+the renderer keeps trying to resolve a body that is not there, every frame,
+and the game drops to 9 fps. Both symptoms, one cause.
+
+The full recipe is the one the garage uses to build a new car (`0x503A80`):
+
+```
+0x610270  CarSpec::Init(model, 1, 0, 0)
+0x61C280  CarSpec::SetSkin(n)        builds "DUMMY_SKIN%d"
+0x637040  CarSpec::DefaultParts(n)   for each part index, asks 0x61BC80 what
+                                     the default part for THIS model is and
+                                     writes it to spec+0x590 + index*4
+```
+
+`0x6102F0` is the matching getter (`part(i) = [spec + i*4 + 0x590]`), useful
+for checking from a mod that the body actually went in.
+
+### Every car needs its own texture number
+
+`0x61C280` builds `"DUMMY_SKIN%d"`, `"DUMMY_WHEEL%d"` and `"DUMMY_SPINNER%d"`,
+hashes them and stores the results in `spec+0x584` and `+0x588`. The number is
+the car's **texture space**: two cars sharing it share the textures, and the
+one that loads last wins. The garage passes `index+1`, so the player, at slot
+0, is `DUMMY_SKIN1` — and a mod that passes a literal 1 dresses the player in
+the spawned car's paint. The number has to come from the car's own slot.
+
+The skin hash is worth logging next to the player's when spawning: two equal
+hashes are the bug, visible before anything reaches the screen.
+
+### The collision crash: `sim+0x0C`, not `sim+0x68`
+
+The crash at `0x593A5E` survived every change, and the reason it resisted is
+that the null field belongs to a different object than the one being read:
+
+```
+005AF38C  mov ecx, [esi + 0x0c]      ; the sim's COLLISION object
+005AF3A4  call dword ptr [edx + 0x60]
+00593A5B  mov eax, dword ptr [ecx + 0x68]
+00593A5E  mov edx, dword ptr [eax + 0x158]    <- eax null
+```
+
+`sim+0x0C` is the model's collision geometry, looked up by `0x5A18C0` in a
+global list at `0x86B598`, keyed by what `0x61C320` builds out of the model
+name and **parts 5 and 6**. When that lookup fails, the sim's constructor
+(`0x5AED58`) makes a default box of **0x40 bytes** — six floats, a bounding
+box — and sets `sim+0x10 = 1`.
+
+The real object has fields at +0x68, +0x158, +0x170, +0x1B0. The default box
+is 0x40 bytes long. Reading +0x68 from it is reading past the end, and the
+first collision does exactly that.
+
+`sim+0x10` is therefore a **reliable, game-provided verdict** on a spawned
+car: 1 means "this car will take the game down when something touches it".
+The mod checks it right after the constructor and refuses to put such a car
+in the world.
+
+Three candidates at the same offset, told apart by what they hold, measured
+in-game across every car in the world:
+
+| | player | traffic | opponent | spawned |
+|---|---|---|---|---|
+| `col+0x68` | `0x8f0006` | `0x60005` | `0x3e0005` | `0xc5000a` |
+| `ctrl+0x68` | float | float | float | garbage |
+| `sim+0x68` | pointer | **0** | pointer | **0** |
+
+`col+0x68` and `ctrl+0x68` are two packed words and a float: if `0x593A5E`
+dereferenced either, touching any car would kill the game. `sim+0x68` — the
+object built by `0x5AEC20` and hung off `car+0x3C` — is the only one that is
+a pointer on the cars that work and null on the spawned one.
+
+Traffic has it null too and never crashes, which says the method is only
+reached for cars the game treats as racers.
+
+`sim+0x68` is a **RigidBody**: the pool is named `RigidBodySlotPool`
+(`0x598F10`), its objects are 0x210 bytes — exactly the gap between two
+opponents' values — and what `0x593A40` reads from it, `+0x158` and `+0x1B0`,
+is mass and inertia. Traffic has no rigid body at all; it runs on simplified
+physics, which is why touching it never crashes.
+
+Two things were ruled out by measurement rather than reading:
+
+- **Neither the driver type nor the AI type produces one.** All eight
+  combinations of `SetDriverType(0..5)` and `SetAIType(0/1/3/4)` leave the
+  field null, on two different models. `0x5B6FC0` and `0x5B5CC0` do take a
+  rigid body from the pool, but they hang it inside the driver, not on the sim.
+- The only function in the binary that stores a pool rigid body into a `+0x68`
+  is `0x5B1540`, reached from the constructor `0x5B3240` — of an object that
+  comes from a **different pool** (`0x86B374`). So the rigid body is not
+  attached to a sim after the fact: it is born with a sim of another class,
+  and `0x5AEC20` builds the simplified one.
+
+### The gate at `car+0x5C0`
+
+The rigid body is hung on the sim by `0x5938C0`, which `SetDriverType` calls
+at the end:
+
+```
+if ([sim+0x5C] == 0) return;                    leaves +0x68 null
+if ([car+0x28] is not 1 and not 3) return;      leaves +0x68 null
+[sim+0x68] = [ [car+0x34] + 0x20 ]              from inside the DRIVER
+```
+
+Only cases 1 and 3 of the switch write `[sim+0x5C] = 1`, and the type-1 driver
+(`0x5B5CC0`) is one of the functions that take a RigidBody from the pool. So
+asking for driver type 1 should be all it takes — and asking was not enough,
+because `SetDriverType` opens with:
+
+```
+005F471E  cmp byte ptr [esi+0x5C0], bl   ; this byte being 0...
+005F472A  cmp edi, 4                     ; ...and a requested type other than 0 or 4
+005F473A  mov [esp+0x24], eax            ; silently rewrites the type to 0 or 4
+```
+
+The constructor leaves `car+0x5C0` at zero, so every request for type 1 or 3
+was quietly downgraded to 4 — which then fails the filter in `0x5938C0`. The
+whole eight-combination sweep came back null because the game never tried what
+the mod asked for. The log line that cracked it was one number: `car+0x28=4`
+after asking for 1.
+
+`0x5F6CD0` is what sets the byte: `thiscall(car)`, deriving it from the car's
+position (`car+0x60`) through `0x5E68D0` — it means "this car is in an active
+part of the world". Calling it after the constructor lets the game decide;
+writing 1 by hand is the fallback.
+
+With the gate open, a spawned car gets its rigid body and survives being hit.
+Step two is done: pick a model, spawn it standing at a saved coordinate, walk
+into it.
+
+Two details that only show up once several cars exist at the same time:
+
+- The slot scan that picks a free `DUMMY_SKIN` filtered on slot types 1 and 2
+  and skipped **3** — the very type this mod's slots use. Each spawned car
+  therefore could not see the previous one's skin and asked for the same
+  number, so four cars shared one texture.
+- `Init`'s last two arguments are the paint colours (`spec+5`, `spec+6`), and
+  passing 0 gives every car the same factory colour. Varying them per slot is
+  enough until step three makes it a choice.
+
+### How many cars fit
+
+Two limits, and the one that bites is not the obvious one:
+
+- **22 slots**, hard, from the static array at `0x890160`. A free-roam session
+  already uses 14 (player, 3 racers, 10 traffic), so 8 are left.
+- **Six textures.** `DUMMY_SKIN1` to `6` exist and nothing beyond — six is the
+  size of a race grid. Measured, not guessed: with the player on 1 and racers
+  on 2-4, the third spawned car asked for 7 and came out invisible, the same
+  symptom as the earlier `DUMMY_SKIN15`. A number with no resource behind it
+  is a body with no texture.
+
+Counted in the game's own files rather than guessed: hashing `DUMMY_SKIN<n>`
+with the real function (`0x43DB50`: `h = 0xFFFFFFFF; h = h*0x21 + c`, which
+reproduces the two values read out of memory) and searching the `.bin` files,
+`DUMMY_SKIN1` to `6` appear in `GlobalMemoryFile.bin` and `CARS\TEXTURES.BIN`,
+and 7 onwards appear nowhere. Six is not a limit in code that can be patched
+out — it is the absence of an asset.
+
+Going without one does not help either: traffic lives with a zeroed skin hash
+and shows up fine, but a **race** model with no skin comes out transparent,
+which was measured — the third spawned car was invisible both when it asked
+for `DUMMY_SKIN7` and when it asked for nothing.
+
+The field that decides is `CarTypeInfo+0x88C`, tested at `0x61C2B3`: zero
+means the model does not use a custom skin at all. So:
+
+- **race models** cost one of the six, and a free roam (player + 3 racers)
+  leaves two;
+- **traffic models** cost nothing and are limited only by slots.
+
+Past six, sharing a number with another car *the mod spawned* beats vanishing.
+
+### Step three: parts and vinyls
+
+An installed part is a **pointer** in the spec, at `+0x590 + slot*4` — the
+same place `SetStockParts` fills, and what the Unlimiter writes as
+`RideInfo[CarSlotID + 356]` (356 dwords is 0x590, which confirms the offset
+found here by hand). Changing a part is writing that pointer and telling the
+car:
+
+| | |
+|---|---|
+| `0x8A2B68` | the car part database |
+| `0x61BA30` | `thiscall FirstCarPart(carType, slot, hash, level)` |
+| `0x61BA50` | `thiscall NextCarPart(previous, carType, slot, hash, level)` — hash 0 and level -1 mean "any" |
+| `0x610000` | `thiscall CarPart::GetName() -> char*` |
+| `0x61BCD0` | `thiscall RideInfo::UpdatePartsEnabled()` — without it the part is in the spec and the body does not know |
+| `0x802DE8` | slot names: pairs of `{int id, char* name}` until a null pointer |
+
+Read out of the exe, the slots run from `BASE` (0) to `VINYL_COLOUR3_3`, with
+**`VINYL_LAYER0..3` at 64-67** and the paints at 63 and 68-76. So vinyls and
+paint are not a separate system: they are slots like any other, and the same
+write-then-update does all of it.
+
+### Challenging a spawned car to an outrun
+
+The game already has this: the **RandomEncounterManager**, whose states are
+spelled out in the exe at `0x7E9B78` — `NONE`, `POLL_CAREER`,
+`LOADING_OPPONENTS`, `TRYING_TO_ENGAGE`, `RACING`, `DEACTIVATE_OPPONENT`.
+
+| | |
+|---|---|
+| `[0x890118]` | the encounter object; `0x60A282` reads it and runs its update (`0x6076D0`) |
+| `obj+0xC30` | a flag — the update sees it set, calls `0x607180`, and clears it |
+| `0x607180` | builds the encounter: writes 7 into `[0x89E7B0]` (the mode) and gathers participants |
+| `obj+0xC40` | the RandomEncounterManager itself |
+
+Setting the flag is better than calling `0x607180` from a mod: the game runs
+it at its own point in the frame, which is where it expects to be.
+
+The detail that decides whether a spawned car can be challenged at all:
+`0x607180` collects opponents from **group 2** of the world car list — the
+cars whose *slot* is type 2, racer — using the grouping `0x5F0D20` builds. A
+car spawned as traffic (type 3) is invisible to it. So the challenge promotes
+the car to racer first, and only then arms the flag.
+**The slot array, on the other hand, can be grown.** Nothing reaches
+`0x890160` directly — the code goes through `[container+0x70]`, written once
+in the constructor at `0x5ED69C` — so a bigger array can be allocated,
+copied into, and pointed at, with the ceiling (`cmp [esi+0x74], 0x16` at
+`0x60163D`) patched to match. The Unlimiter does exactly this to the traffic
+manager, relocating it to `0x1230 + 0x920 * 64` bytes of its own.
+
+**A mistake worth not repeating:** an attempt to sweep the combinations
+automatically — build a car, check the field, discard and try the next —
+corrupted the heap and made the game die at spawn, jumping to 0xBCA3D70A. The
+car constructor *registers* the car in the game's lists (CarRenderInfo in the
+render list, the sim in its own), and a discarded car does not leave them.
+Seven half-built cars being updated every frame is not "leaking 0x9E0 bytes",
+which is how the idea was costed. Build one car, once.
+
+### Names, from NFSU2Unlimiter
+
+nlgxzef's Unlimiter (github.com/nlgxzef/NFSU2Unlimiter) is a customization
+mod, so it does not touch the physics side, but it names a lot of what this
+hunt had to find by hand — and it confirms the map:
+
+| Address | Its name |
+|---|---|
+| `0x8A1CCC` | `CarTypeInfoArray` (the model table) |
+| `0x89E7A0` | `TheRaceParameters` (the slot container) |
+| `0x637040` | `RideInfo::SetStockParts` (the factory parts) |
+| `0x61BC80` | `FindPartWithLevel(RideInfo*, CarSlotID, level)` |
+| `0x6102F0` | `RideInfo_GetPart(RideInfo*, CarSlotID)` |
+| `0x631D20` | `RideInfo_SetPart` |
+| `0x61BCD0` | `RideInfo_UpdatePartsEnabled` |
+| `0x638190` | `CarRenderInfo` constructor `(RideInfo*, Car*)` |
+| `0x412950` | `StreamingTrafficCarManager::Update` |
+| `0x802DE8` | `CarSlotIDNames` — the part slots, by name |
+| `0x4A7890` | `GetRideInfo(which_car)` |
+
+So the 0x940 slot is a **RideInfo**, and the parts written at `spec+0x590 +
+i*4` are indexed by **CarSlotID**, whose names are in a table in the exe.
+Step three is `RideInfo_SetPart` plus that table, which is a far shorter road
+than step two was.
+
+### The loader, and the signal that actually means "loaded"
+
+`0x63B160` is the pump, and it is a state machine driven by asynchronous I/O,
+not a function that loads anything before it returns. It walks the request
+list, hands a file to `0x4941C0` with `0x610A10` as the completion callback,
+sets `loader+0x14 = 1` and leaves. The callback zeroes that field and calls
+the pump again, which picks up where it left off. Traffic cars stream in this
+way while you drive, so it works at runtime — nothing about it needs a loading
+screen.
+
+Which makes `loader+0x14` a trap: it is "a read is in flight", and it goes
+back to zero **between** reads. Waiting on it means building the car in a gap
+several files before the model exists, which is exactly how the first attempt
+got a car with no data and a crash on contact.
+
+The truth is in the request:
+
+| | |
+|---|---|
+| `loader+0x58` | sentinel of the request list (circular, `+0` next, `+4` prev) |
+| `req+0x0C` | **state: 1 loading, 2 ready** (`0x63B41E` writes the 2) |
+| `req+0x20` | the request's own copy of the spec — `[req+0x20]` is the model index |
+| `req+0x910` | the model-table entry |
+| `req+0x123C` | the number `RequestLoad` hands back |
+
+`RequestLoad` returns the number, not the node, so finding the request means
+walking the list from the sentinel and matching `+0x123C`. Then wait for
+`+0x0C` to reach 2, and only then build the car.
+
+One detail worth keeping in mind for later: at the end of a request the pump
+searches the racer array for a slot using that same model (`0x63B360`), and
+what it does next depends on the gameflow — in the frontend (state 3) and at
+boot it takes another path entirely, through `0x61C600`. So "load a car" is
+not one behaviour: the engine already distinguishes a car for a race from a
+car for a menu.
+
+## Challenging a spawned car to an outrun
+
+A spawned car can be raced. The recipe is short, but only two lines of it are
+the ones that matter, and both were found by comparing a real outrun against
+ours in the same log rather than by reading the disassembly.
+
+```
+slot+0x04 = 2                                   the slot becomes a racer's
+car+0x0A  = <free racer id>                     the game's own are 100..102
+SetAiType(car, 3); SetDriverType(car, 3)
+0x5F0D20(world)                                 regroup: puts it in the racer bucket
+player+0x250 = car                              <- THE RIVAL
+manager+0xC30 = 1                               arm; the update assembles it
+```
+
+**`player+0x250` is the rival's car.** Without it there is no outrun, only a
+race everybody has already lost. `0x607180` walks the participants and marks
+every one of them "lost" (`word[part+0x10] = 7`), skipping exactly two: the
+player, by `slot+4 == 1` at `0x60736C`, and the car at `player+0x250`, at
+`0x607376`. Those two survive at state 0 — and state 0 is the only state the
+loop at `0x607980` promotes to 3, "racing". A null pointer there means the
+challenged car is never promoted, so the AI never drives it, the HUD has no
+target for the arrow (it falls on the player), the distance readout has no
+reference, and `0x5EE250` eventually has the car removed.
+
+The participant object lives at `car+0x1C`. `word[part+0x10]` is its state in
+the machine at `0x606CB0` = `SetParticipantState(manager, index, ..., state)`,
+which takes the state as its fourth argument and dispatches through a table for
+4..7. 0 is racing, 3 is in the race, 6 won, 7 lost. `part+0x0A` is the finishing
+position — `0x6078CD` picks 6 or 7 from it. It is not `car+0x0A`, which is the
+racer id; confusing the two cost several rounds.
+
+Two other things end an outrun before it starts, both of which are symptoms of
+the same missing rival and both of which disappeared once it was set:
+
+`0x5EA530` stamps `player+0x50` with the clock the moment the player is
+considered finished, and `0x60B5BD` ends the race when
+`[0x7FB720] > player+0x50 + player+0x54`. With `+0x54` at zero the deadline
+expires on the next frame. `0x607180` calls it from inside its bookkeeping
+loop — the loop that should not be running at all in a healthy outrun.
+
+`0x42C0C0` asks `0x5EE250` every frame whether a participant is still racing,
+and `0x5EE250` answers from that one field: a participant not at state 0, while
+a race mode is set, gets `SetDriverType(car, 1)` — it stops being a racer, goes
+translucent and is collected.
+
+### Six participants, and not one more
+
+The participants live at `manager+0x30` with a `0x1F0` stride, and the array of
+pointers to them starts at `manager+0xBD0`:
+
+    (0xBD0 - 0x30) / 0x1F0 = 6, exactly
+
+Six fit. With the three free-roam racers, the player and three cars of ours all
+promoted to racer slots, `0x607180` constructs the seventh on top of the pointer
+array, and `0x5FC2A0` then calls `0x5EDE40` over fields that are now something
+else — it read `0x3F9C28F6`, a float, as a pointer. So: promote only the car
+being challenged and demote the previous one, which is also the game's own model
+(an outrun has a rival, not a roster), plus a hard check before arming.
+
+That diagnosis took one run because the plugin carries a vectored handler that
+logs, at the moment of the fault, the address, the registers, the game return
+addresses still on the stack and how many cars the mod has where. The Event
+Viewer only gives the offset, and the log simply stops.
+
+### What the three flags are not
+
+`0x89CF69`, `0x8669F4` and `0x866A14` are read all over this code and look like
+escapes from the race ending. They are the opposite: they select the **race
+event** path (circuit, sprint, drag, with its loading screen). A world outrun is
+the fall-through with all three at zero. Setting `0x89CF69` sends `0x5FC510`
+down a path that indexes `0x89CF50` by `byte[0x89D020]`, structures that do not
+exist in free roam, and the game faults at `0x5FC577`. Nothing *writes* that
+byte, which is not the same as nothing depending on it.
+
+### Method
+
+Four rounds of "read the branch, form a hypothesis, ask for a game run" produced
+four wrong hypotheses; `0x6076D0` is too large a state machine to deduce a
+branch at a time. What worked, every time:
+
+- **A hardware breakpoint** on the field (DR0 + DR7, a vectored handler logging
+  EIP). It named `0x5EA54A`, `0x5F4709` and `0x607E52` on the first try each.
+  It must ignore writes coming from the plugin's own module, or it catches the
+  diagnostic instead of the culprit.
+- **Intercepting a setter** and recording `_ReturnAddress()`, when the field is
+  written through a function with dozens of call sites.
+- **Capturing the game doing it right.** The plugin notices `0x89E7B0` going to
+  7 with no challenge of ours in flight, and dumps the same fields it dumps for
+  ours. `player+0x250` appeared in the first diff, after several rounds of
+  failing to find it by reading.
+
 ## Open
 
 **The rear-view mirror.** Still on screen after the HUD is hidden. Likely path:
@@ -208,6 +786,15 @@ Diagnostics that stay in the binary, useful when something stops showing up:
   separates a compositing problem from a page problem.
 
 ## Details that cost time
+
+**F10 never reaches a mod** — or did not, until now. Windows delivers F10, and
+anything held with Alt, as `WM_SYSKEYDOWN`, because F10 is the key that opens
+the window menu. `InputRouter` only listened to `WM_KEYDOWN`, so a mod that
+bound F10 waited for a message that was never coming, and the silence looked
+exactly like a broken mod. The router now treats both as a key press and
+swallows the F10 afterwards, so `DefWindowProc` does not open the window menu
+and drop the game out of focus mid-race.
+
 
 **`libcef.dll` failing with error 126.** It lives in `scripts\SpeedLoader\`,
 away from `SPEED2.EXE`. Windows resolves a DLL's dependencies from the

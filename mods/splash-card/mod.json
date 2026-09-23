@@ -1,8 +1,0 @@
-{
-  "id": "splash-card",
-  "name": "Splash card",
-  "version": "1.0.0",
-  "main": "main.js",
-  "ui": "ui/index.html",
-  "enabled": true
-}

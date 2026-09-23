@@ -235,6 +235,28 @@ The table is versioned: `SL_Connect` passes the `SL_API_VERSION` your header
 was built with, and a newer SpeedLoader answers with a table that still means
 what your header says it means. Fields are only ever added at the end.
 
+## The shape of a bigger one
+
+The example is deliberately small. A native mod that does something
+substantial - spawning cars, dressing them with parts, racing one of them -
+needs nothing more from this API, and four habits:
+
+- **It hooks the game itself.** Repoint the `CALL` at `0x581475` to your own
+  function and call whoever was there, so you chain on top of SpeedLoader
+  instead of fighting it — the same idea as `speed.mem.redirectCall` on the
+  JavaScript side.
+- **It connects from a thread, not from `DllMain`.** SpeedLoader may load
+  after you, and its UI comes up a second into the game.
+- **It only touches the game from the game thread**: your own frame hook and
+  the panel callback, which SpeedLoader already pins there.
+- **The page is just a page.** A panel written for a JavaScript mod moves to a
+  native one by changing its channels and nothing else — `speedloader` and
+  `root` mean the same thing on both sides.
+
+Your own plugins go in `plugins\`, which git ignores. Add a target for yours
+beside the guarded `SpawnCar` one in `CMakeLists.txt`, and `install.ps1` copies
+the built `.asi` next to the loader, with its page in a folder of its own name.
+
 ## What this is not
 
 This is a UI, not the JavaScript SDK. `speed.game.telemetry()`, memory reads,

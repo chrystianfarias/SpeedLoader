@@ -104,6 +104,25 @@ target_include_directories(SpeedLoaderHelper PRIVATE "${CEF_ROOT}")
 target_link_libraries(SpeedLoaderHelper PRIVATE libcef_lib libcef_dll_wrapper)
 SET_EXECUTABLE_TARGET_PROPERTIES(SpeedLoaderHelper)
 
+# ---------------------------------------------------------------- SpawnCar
+# O mod spawn-car como .asi nativo: hooka o jogo por conta propria e pega a
+# interface emprestada do SpeedLoader pelo mesmo header publico do exemplo.
+# plugins/ is not in the repository - it is where the local .asi mods live - so
+# the target only exists on a machine that has one.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/plugins/spawn-car/SpawnCar.cpp")
+    add_library(SpawnCar SHARED plugins/spawn-car/SpawnCar.cpp)
+    set_target_properties(SpawnCar PROPERTIES
+        OUTPUT_NAME "SpawnCar"
+        SUFFIX ".asi"
+        PREFIX "")
+    target_include_directories(SpawnCar PRIVATE sdk plugins/spawn-car)
+    target_compile_definitions(SpawnCar PRIVATE
+        WIN32 _WINDOWS NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+    # psapi: o plugin precisa dos limites do proprio modulo para distinguir, num
+    # breakpoint de hardware, uma escrita sua de uma escrita do jogo.
+    target_link_libraries(SpawnCar PRIVATE psapi)
+endif()
+
 # ---------------------------------------------------------------- example plugin
 # A native .asi that takes its interface from SpeedLoader through sdk/speedloader.h
 # and nothing else - no CEF, no QuickJS, one source file. It is also what keeps
